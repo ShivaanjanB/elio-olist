@@ -3,7 +3,7 @@
   pieces and by mixed methods, so joining payments to anything at item or order level would inflate every total (D15).
 
   primary_payment_type is the type of the LARGEST payment. The two largest payments tie on value for 188 orders, so
-  the tie is broken by payment_sequential (the earlier payment wins) to keep the answer stable between runs.
+  the tie is broken by payment_sequential (the earlier payment wins) to keep the answer stable between runs (D43).
 #}
 with payments as (
 
@@ -15,10 +15,9 @@ totals as (
 
     select
         order_id,
-        sum(payment_value)                          as payment_total,
-        count(*)                                    as payment_count,
-        max(payment_installments)                   as installments_max,
-        boolor_agg(payment_type = 'voucher')        as used_voucher
+        sum(payment_value)          as payment_total,
+        count(*)                    as payment_count,
+        max(payment_installments)   as installments_max
     from payments
     group by order_id
 
@@ -42,7 +41,6 @@ select
     totals.payment_total,
     totals.payment_count,
     totals.installments_max,
-    totals.used_voucher,
     largest.primary_payment_type
 
 from totals

@@ -60,10 +60,6 @@ models:
           - not_null
       - name: installments_max
         description: Largest instalment count among the order's payments.
-      - name: used_voucher
-        description: True when any payment on the order was a voucher.
-        data_tests:
-          - not_null
       - name: primary_payment_type
         description: Method of the largest payment. 188 orders tie on value, so the earlier payment wins (D43).
         data_tests:

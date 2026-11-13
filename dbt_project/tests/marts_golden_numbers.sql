@@ -26,13 +26,19 @@ with actual as (
            (select count(*) from {{ ref('dim_customer') }})
     union all
     select 'people who ordered more than once',
-           (select count_if(is_repeat_customer) from {{ ref('dim_customer') }})
+           (select count_if(has_multiple_orders) from {{ ref('dim_customer') }})
     union all
     select 'people whose first order is canceled or unavailable',
            (select count(*)
             from {{ ref('dim_customer') }} as customers
             inner join {{ ref('fct_orders') }} as orders on orders.order_id = customers.first_order_id
             where not orders.is_revenue_order)
+    union all
+    select 'people with a delivered first order',
+           (select count_if(repeat_after_first_delivery is not null) from {{ ref('dim_customer') }})
+    union all
+    select 'of them, who ordered again after the delivery',
+           (select count_if(repeat_after_first_delivery) from {{ ref('dim_customer') }})
     union all
     select 'orders with no items',
            (select count_if(item_count = 0) from {{ ref('fct_orders') }})
@@ -51,6 +57,8 @@ expected as (
     union all select 'people', 96096
     union all select 'people who ordered more than once', 2997
     union all select 'people whose first order is canceled or unavailable', 1153
+    union all select 'people with a delivered first order', 93248
+    union all select 'of them, who ordered again after the delivery', 1813
     union all select 'orders with no items', 775
     union all select 'orders with no review', 768
 

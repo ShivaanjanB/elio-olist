@@ -6,6 +6,9 @@
   Customer key: computed from customer_unique_id with the same macro dim_customer uses (D41). The relationships test
   proves every order finds its person.
 
+  revenue is items_price_total where the order counts as revenue and 0 where it does not (D47), so a plain
+  SUM(revenue) is already the right revenue. items_price_total is the unfiltered amount.
+
   Delivery measures (D18, D19): calendar days at DATE grain, and only for orders with status 'delivered' that have a
   customer-delivery date. Everything else is NULL, never 0, so an average ignores them.
 #}
@@ -60,6 +63,7 @@ joined as (
         coalesce(items.freight_total, 0)                      as freight_total,
         coalesce(payments.payment_total, 0)                   as payment_total,
         coalesce(payments.payment_count, 0)                   as payment_count,
+        payments.installments_max,
         payments.primary_payment_type,
         reviews.review_score,
         coalesce(reviews.review_count, 0)                     as review_count
@@ -102,8 +106,10 @@ select
     cast(items_price_total as number(12,2))                                            as items_price_total,
     cast(freight_total as number(12,2))                                                as freight_total,
     cast(items_price_total + freight_total as number(12,2))                            as gmv,
+    cast(iff(order_status not in ('canceled', 'unavailable'), items_price_total, 0) as number(12,2))   as revenue,
     cast(payment_total as number(12,2))                                                as payment_total,
     cast(payment_count as number(10,0))                                                as payment_count,
+    cast(installments_max as number(10,0))                                             as installments_max,
     cast(primary_payment_type as varchar)                                              as primary_payment_type,
     cast(review_score as number(1,0))                                                  as review_score,
     cast(review_count as number(10,0))                                                 as review_count

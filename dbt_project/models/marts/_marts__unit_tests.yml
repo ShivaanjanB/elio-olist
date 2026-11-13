@@ -1,0 +1,111 @@
+version: 2
+
+# Unit tests for the order fact: the delivery and lateness rules, and the "orders are the spine" rule. Made-up inputs
+# with a known answer, so the logic is checked on cases the real data may not show every time.
+
+unit_tests:
+  - name: test_late_is_measured_at_date_grain
+    description: >
+      The estimated date always sits at midnight, so an order delivered on the estimated day in the afternoon is on time
+      (D18): days_vs_estimate is 0 and is_late is false, even though a timestamp comparison would call it late. Days to
+      deliver are calendar days from the purchase date (D44).
+    model: fct_orders
+    given:
+      - input: ref('stg_olist__orders')
+        rows:
+          - {order_id: o_early, order_status: delivered, order_purchase_timestamp: '2018-01-01 10:00:00', order_delivered_customer_date: '2018-01-05 08:00:00', order_estimated_delivery_date: '2018-01-10 00:00:00'}
+          - {order_id: o_same_day, order_status: delivered, order_purchase_timestamp: '2018-01-02 09:00:00', order_delivered_customer_date: '2018-01-10 15:30:00', order_estimated_delivery_date: '2018-01-10 00:00:00'}
+          - {order_id: o_late, order_status: delivered, order_purchase_timestamp: '2018-01-03 09:00:00', order_delivered_customer_date: '2018-01-12 09:00:00', order_estimated_delivery_date: '2018-01-10 00:00:00'}
+      - input: ref('int_customer_orders')
+        rows:
+          - {order_id: o_early, customer_unique_id: person_1, order_number: 1, customer_state: SP}
+          - {order_id: o_same_day, customer_unique_id: person_2, order_number: 1, customer_state: RJ}
+          - {order_id: o_late, customer_unique_id: person_1, order_number: 2, customer_state: SP}
+      - input: ref('int_order_items_rollup')
+        rows: []
+      - input: ref('int_order_payments')
+        rows: []
+      - input: ref('int_order_reviews')
+        rows: []
+    expect:
+      rows:
+        - {order_id: o_early, days_to_deliver: 4, days_vs_estimate: -5, is_late: false, customer_order_number: 1, is_first_order: true}
+        - {order_id: o_same_day, days_to_deliver: 8, days_vs_estimate: 0, is_late: false, customer_order_number: 1, is_first_order: true}
+        - {order_id: o_late, days_to_deliver: 9, days_vs_estimate: 2, is_late: true, customer_order_number: 2, is_first_order: false}
+
+  - name: test_orders_without_children_are_kept_and_odd_deliveries_are_not_measured
+    description: >
+      Orders are the spine (D21): an order with no items, payment or review stays, with counts of 0, money of 0 and a NULL
+      score, never dropped. A canceled order that has items keeps its item price but has revenue 0 (D47). A canceled order carrying a stray delivery date, and a delivered order with no date, get NULL
+      delivery measures and NULL is_late rather than false (D19). Canceled orders are not revenue orders (D17).
+      gmv is items price plus freight, and payment_total stays separate (D16).
+    model: fct_orders
+    given:
+      - input: ref('stg_olist__orders')
+        rows:
+          - {order_id: o_ok, order_status: delivered, order_purchase_timestamp: '2018-01-01 10:00:00', order_delivered_customer_date: '2018-01-05 08:00:00', order_estimated_delivery_date: '2018-01-10 00:00:00'}
+          - {order_id: o_canceled, order_status: canceled, order_purchase_timestamp: '2018-01-04 09:00:00', order_delivered_customer_date: '2018-01-11 09:00:00', order_estimated_delivery_date: '2018-01-10 00:00:00'}
+          - {order_id: o_no_date, order_status: delivered, order_purchase_timestamp: '2018-01-05 09:00:00', order_delivered_customer_date: null, order_estimated_delivery_date: '2018-01-10 00:00:00'}
+      - input: ref('int_customer_orders')
+        rows:
+          - {order_id: o_ok, customer_unique_id: person_1, order_number: 1, customer_state: SP}
+          - {order_id: o_canceled, customer_unique_id: person_2, order_number: 1, customer_state: RJ}
+          - {order_id: o_no_date, customer_unique_id: person_3, order_number: 1, customer_state: MG}
+      - input: ref('int_order_items_rollup')
+        rows:
+          - {order_id: o_ok, item_count: 2, seller_count: 1, items_price_total: 100.00, freight_total: 20.00}
+          - {order_id: o_canceled, item_count: 1, seller_count: 1, items_price_total: 40.00, freight_total: 5.00}
+      - input: ref('int_order_payments')
+        rows:
+          - {order_id: o_ok, payment_total: 118.00, payment_count: 2, installments_max: 3, primary_payment_type: credit_card}
+      - input: ref('int_order_reviews')
+        rows:
+          - {order_id: o_ok, review_id: r_1, review_score: 5, review_count: 1}
+    expect:
+      rows:
+        - {order_id: o_ok, is_revenue_order: true, item_count: 2, items_price_total: 100.00, freight_total: 20.00, gmv: 120.00, revenue: 100.00, payment_total: 118.00, payment_count: 2, installments_max: 3, review_score: 5, review_count: 1, days_to_deliver: 4, is_late: false}
+        - {order_id: o_canceled, is_revenue_order: false, item_count: 1, items_price_total: 40.00, freight_total: 5.00, gmv: 45.00, revenue: 0.00, payment_total: 0.00, payment_count: 0, installments_max: null, review_score: null, review_count: 0, days_to_deliver: null, is_late: null}
+        - {order_id: o_no_date, is_revenue_order: true, item_count: 0, items_price_total: 0.00, freight_total: 0.00, gmv: 0.00, revenue: 0.00, payment_total: 0.00, payment_count: 0, installments_max: null, review_score: null, review_count: 0, days_to_deliver: null, is_late: null}
+
+  - name: test_repeat_after_first_delivery_needs_a_later_revenue_order_placed_after_delivery
+    description: >
+      A person came back only if a later non-canceled order was placed on or after the day the first order was delivered
+      (D46). Ordering again before the first order arrived does not count, nor does a canceled follow-up. A person whose
+      first order was never delivered has no experience to react to, so the flag is NULL rather than false. Ordering
+      again on the delivery day counts.
+    model: dim_customer
+    given:
+      - input: ref('int_customer_orders')
+        rows:
+          - {customer_unique_id: p_before, order_id: o1, order_number: 1, customer_state: SP}
+          - {customer_unique_id: p_before, order_id: o2, order_number: 2, customer_state: SP}
+          - {customer_unique_id: p_after, order_id: o3, order_number: 1, customer_state: RJ}
+          - {customer_unique_id: p_after, order_id: o4, order_number: 2, customer_state: RJ}
+          - {customer_unique_id: p_cancel, order_id: o5, order_number: 1, customer_state: MG}
+          - {customer_unique_id: p_cancel, order_id: o6, order_number: 2, customer_state: MG}
+          - {customer_unique_id: p_undelivered, order_id: o7, order_number: 1, customer_state: BA}
+          - {customer_unique_id: p_undelivered, order_id: o8, order_number: 2, customer_state: BA}
+          - {customer_unique_id: p_single, order_id: o9, order_number: 1, customer_state: PR}
+          - {customer_unique_id: p_sameday, order_id: o10, order_number: 1, customer_state: SC}
+          - {customer_unique_id: p_sameday, order_id: o11, order_number: 2, customer_state: SC}
+      - input: ref('fct_orders')
+        rows:
+          - {order_id: o1, purchase_date: '2018-01-01', delivered_date: '2018-01-10', is_revenue_order: true}
+          - {order_id: o2, purchase_date: '2018-01-05', delivered_date: '2018-01-12', is_revenue_order: true}
+          - {order_id: o3, purchase_date: '2018-01-01', delivered_date: '2018-01-10', is_revenue_order: true}
+          - {order_id: o4, purchase_date: '2018-01-20', delivered_date: '2018-01-27', is_revenue_order: true}
+          - {order_id: o5, purchase_date: '2018-01-01', delivered_date: '2018-01-10', is_revenue_order: true}
+          - {order_id: o6, purchase_date: '2018-02-01', delivered_date: null, is_revenue_order: false}
+          - {order_id: o7, purchase_date: '2018-01-01', delivered_date: null, is_revenue_order: false}
+          - {order_id: o8, purchase_date: '2018-02-01', delivered_date: '2018-02-08', is_revenue_order: true}
+          - {order_id: o9, purchase_date: '2018-01-01', delivered_date: '2018-01-10', is_revenue_order: true}
+          - {order_id: o10, purchase_date: '2018-01-01', delivered_date: '2018-01-10', is_revenue_order: true}
+          - {order_id: o11, purchase_date: '2018-01-10', delivered_date: '2018-01-17', is_revenue_order: true}
+    expect:
+      rows:
+        - {customer_unique_id: p_before, first_order_id: o1, order_count: 2, has_multiple_orders: true, repeat_after_first_delivery: false, first_order_state: SP}
+        - {customer_unique_id: p_after, first_order_id: o3, order_count: 2, has_multiple_orders: true, repeat_after_first_delivery: true, first_order_state: RJ}
+        - {customer_unique_id: p_cancel, first_order_id: o5, order_count: 2, has_multiple_orders: true, repeat_after_first_delivery: false, first_order_state: MG}
+        - {customer_unique_id: p_undelivered, first_order_id: o7, order_count: 2, has_multiple_orders: true, repeat_after_first_delivery: null, first_order_state: BA}
+        - {customer_unique_id: p_single, first_order_id: o9, order_count: 1, has_multiple_orders: false, repeat_after_first_delivery: false, first_order_state: PR}
+        - {customer_unique_id: p_sameday, first_order_id: o10, order_count: 2, has_multiple_orders: true, repeat_after_first_delivery: true, first_order_state: SC}

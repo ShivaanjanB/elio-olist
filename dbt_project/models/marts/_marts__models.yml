@@ -44,16 +44,31 @@ models:
         description: Day of the first order.
         data_tests:
           - not_null
+      - name: first_order_delivered_date
+        data_type: date
+        description: >
+          Day the first order was delivered. NULL when it never was (1,153 people placed a canceled or unavailable first
+          order, and some others never received theirs), in which case repeat_after_first_delivery is NULL too.
       - name: order_count
         data_type: number(10,0)
         description: How many orders the person placed, whatever their status.
         data_tests:
           - not_null
-      - name: is_repeat_customer
+      - name: has_multiple_orders
         data_type: boolean
-        description: True when the person placed more than one order. Includes people whose first order was canceled (D39).
+        description: >
+          True when the person has more than one order of any status. A plain count and NOT a loyalty measure: it includes
+          baskets split over the same second (276 people), orders placed before the first one arrived and canceled follow-ups.
+          Use repeat_after_first_delivery to ask whether the first experience brought the person back (D46).
         data_tests:
           - not_null
+      - name: repeat_after_first_delivery
+        data_type: boolean
+        description: >
+          True when the person placed a later non-canceled order on or after the day the first order was delivered, so the
+          delivery experience could have influenced it. False when they did not. NULL when the first order was never
+          delivered, because there was no experience to react to. Restrict analysis to NOT NULL rows, and compare cohorts
+          with a similar follow-up window, since people whose first delivery was in 2018 had little time to return (D46).
       - name: first_order_state
         data_type: varchar(2)
         description: State on the first order's address.
@@ -251,12 +266,21 @@ models:
           - not_null
       - name: estimated_delivery_date
         data_type: date
-        description: The delivery date promised to the customer.
+        description: The delivery date promised to the customer. Joins to dim_date.date_day.
         data_tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
       - name: delivered_date
         data_type: date
-        description: Day the customer received the order. Set only for 'delivered' orders that have one (96,470), else NULL (D19).
+        description: Day the customer received the order. Set only for 'delivered' orders that have one (96,470), else NULL (D19). Joins to dim_date.date_day.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
       - name: days_to_deliver
         data_type: number(10,0)
         description: Calendar days from purchase to delivery. NULL unless delivered_date is set (D19).
@@ -293,6 +317,14 @@ models:
         description: Items price plus freight, the full amount charged for goods and delivery (D16).
         data_tests:
           - not_null
+      - name: revenue
+        data_type: number(12,2)
+        description: >
+          items_price_total for orders that count as revenue and 0 for canceled and unavailable ones (D17, D47). Sum this
+          for revenue. Summing items_price_total instead gives 13.59M rather than 13.49M. For average order value divide
+          by the orders that have revenue and at least one item, since 8 revenue-status orders have no items.
+        data_tests:
+          - not_null
       - name: payment_total
         data_type: number(12,2)
         description: Cash collected, the sum of all payments. Kept apart from revenue since it includes financing and vouchers (D16).
@@ -303,6 +335,9 @@ models:
         description: Number of payments on the order. 0 for the one delivered order with no payment.
         data_tests:
           - not_null
+      - name: installments_max
+        data_type: number(10,0)
+        description: Largest instalment count among the order's payments. NULL when the order has no payment (D49).
       - name: primary_payment_type
         data_type: varchar
         description: Method of the largest payment. NULL when the order has no payment (D43).
@@ -323,7 +358,9 @@ models:
   - name: fct_order_items
     description: >
       One row per unit on an order (112,650); three of the same product are three rows, so there is no quantity column. The
-      grain for anything by product, category or seller. Sum price over rows where is_revenue_order is true to get revenue.
+      grain for anything by product, category or seller. Sum revenue for revenue. Order-level columns such as is_late repeat
+      on every unit, and the money columns of fct_orders (gmv, freight_total, payment_total) must not be summed after joining
+      the two facts, because each order's total would be counted once per unit.
     config:
       contract:
         enforced: true
@@ -384,9 +421,20 @@ models:
         description: False when the order was canceled or unavailable (D17). Read from fct_orders so it is defined once.
         data_tests:
           - not_null
+      - name: is_late
+        data_type: boolean
+        description: >
+          Whether the unit's ORDER was delivered late, copied from fct_orders (D48). NULL when the order's delivery is not
+          measurable. It repeats for every unit of the order, so for a seller's late rate count distinct order_id and
+          never rows. A multi-seller order counts once for each of its sellers.
       - name: price
         data_type: number(12,2)
-        description: Price of the unit, excluding freight. Revenue is the sum of this where is_revenue_order is true (D16).
+        description: Price of the unit, excluding freight and including canceled and unavailable orders. Use revenue for revenue (D16).
+        data_tests:
+          - not_null
+      - name: revenue
+        data_type: number(12,2)
+        description: Price where the order counts as revenue and 0 otherwise (D17, D47). A plain sum of this is the revenue.
         data_tests:
           - not_null
       - name: freight_value
