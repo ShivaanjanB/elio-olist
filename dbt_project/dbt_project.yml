@@ -2,8 +2,8 @@
 #
 # Layers (docs/data_model.md, decision D03):
 #   staging       views   one model per RAW table: typed, renamed, normalised
-#   intermediate  views   roll children up to order grain (built in a later phase)
-#   marts         tables  the star schema (built in a later phase)
+#   intermediate  views   roll each child table up to order grain, rank each person's orders
+#   marts         tables  the star schema: 4 dimensions and 2 facts, each with an enforced contract
 name: olist
 version: "1.0.0"
 config-version: 2
@@ -23,11 +23,9 @@ models:
     staging:
       +materialized: view
       +schema: staging
-    # The next two blocks are added when those layers are built; until then dbt warns that they match no models.
-    #
-    # intermediate:
-    #   +materialized: view
-    #   +schema: intermediate
-    # marts:
-    #   +materialized: table
-    #   +schema: marts
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts

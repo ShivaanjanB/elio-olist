@@ -1,0 +1,147 @@
+version: 2
+
+# Intermediate: roll each child table up to ORDER grain, and rank each person's orders (D15, D29). Views, so they can be
+# queried while debugging. Every model is keyed by order_id; the tests prove it, because a repeated order_id here would
+# repeat rows in fct_orders and inflate every total.
+
+models:
+  - name: int_order_items_rollup
+    description: >
+      One row per order that has items: how many, from how many sellers, and the sum of price and freight. An order with
+      no items is absent (775 orders), and becomes 0 in fct_orders.
+    columns:
+      - name: order_id
+        description: The order. Unique here, which is the point of the roll-up.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: item_count
+        description: Number of units on the order (up to 21).
+        data_tests:
+          - not_null
+      - name: seller_count
+        description: Number of different sellers on the order (1,278 orders have more than one).
+        data_tests:
+          - not_null
+      - name: items_price_total
+        description: Sum of item prices, excluding freight. What revenue is built from (D16).
+        data_tests:
+          - not_null
+      - name: freight_total
+        description: Sum of item freight charges.
+        data_tests:
+          - not_null
+
+  - name: int_order_payments
+    description: >
+      One row per order that has payments: the total paid, the number of payments and the main payment method. One
+      delivered order has no payment and is absent.
+    columns:
+      - name: order_id
+        description: The order. Unique here, which is the point of the roll-up.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: payment_total
+        description: Sum of every payment on the order, including financing and vouchers.
+        data_tests:
+          - not_null
+      - name: payment_count
+        description: Number of payments (up to 29).
+        data_tests:
+          - not_null
+      - name: installments_max
+        description: Largest instalment count among the order's payments.
+      - name: used_voucher
+        description: True when any payment on the order was a voucher.
+        data_tests:
+          - not_null
+      - name: primary_payment_type
+        description: Method of the largest payment. 188 orders tie on value, so the earlier payment wins (D43).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['credit_card', 'boleto', 'voucher', 'debit_card', 'not_defined']
+
+  - name: int_order_reviews
+    description: >
+      One row per order that has a review, holding the LATEST review (D14). 768 orders have no review and are absent, so
+      their score is NULL downstream and never 0.
+    columns:
+      - name: order_id
+        description: The order. Unique here, which is the point of the roll-up.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: review_id
+        description: The latest review's id.
+        data_tests:
+          - not_null
+      - name: review_score
+        description: Score of the latest review, 1 (worst) to 5 (best).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+      - name: review_answer_timestamp
+        description: When the latest review was answered.
+        data_tests:
+          - not_null
+      - name: review_count
+        description: How many reviews the order has in total (547 orders have more than one).
+        data_tests:
+          - not_null
+
+  - name: int_customer_orders
+    description: >
+      One row per order, tagged with the person who placed it (customer_unique_id) and which of their orders it was
+      (order_number, 1 = their first). Shared by dim_customer and fct_orders so the ranking is defined once.
+    columns:
+      - name: order_id
+        description: The order. Unique, and every order appears.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: customer_id
+        description: The per-order customer record, kept for traceability. Not a person (D12).
+        data_tests:
+          - not_null
+      - name: customer_unique_id
+        description: The person. Every order must find one.
+        data_tests:
+          - not_null
+      - name: order_purchase_timestamp
+        description: When the order was placed. The ranking runs on this, then on order_id (D13).
+        data_tests:
+          - not_null
+      - name: order_number
+        description: 1 for the person's earliest order, 2 for the next. Counts canceled orders too (D39).
+        data_tests:
+          - not_null
+      - name: customer_zip_code_prefix
+        description: Zip prefix on this order's address.
+      - name: customer_city
+        description: City on this order's address.
+      - name: customer_state
+        description: State on this order's address. dim_customer keeps the first order's one (D12).
+        data_tests:
+          - not_null
