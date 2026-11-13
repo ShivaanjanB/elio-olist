@@ -1,0 +1,67 @@
+version: 2
+
+# Unit tests: tiny made-up inputs with a known answer, so the RULE in each model is checked rather than just the data.
+# The data tests prove the real data is clean; these prove the logic is right, including cases that do not occur in the
+# data today (an exact tie on review time, say) but would after a reload.
+
+unit_tests:
+  - name: test_first_order_tie_is_broken_by_order_id
+    description: >
+      Two orders by the same person at the same second: the smaller order_id is order 1, every time (D13). A second
+      person with one order starts again at 1, so ranks never leak between people.
+    model: int_customer_orders
+    given:
+      - input: ref('stg_olist__orders')
+        rows:
+          - {order_id: o_b, customer_id: c_1, order_purchase_timestamp: '2018-01-01 10:00:00'}
+          - {order_id: o_a, customer_id: c_2, order_purchase_timestamp: '2018-01-01 10:00:00'}
+          - {order_id: o_c, customer_id: c_3, order_purchase_timestamp: '2018-01-05 09:00:00'}
+          - {order_id: o_d, customer_id: c_4, order_purchase_timestamp: '2018-01-02 09:00:00'}
+      - input: ref('stg_olist__customers')
+        rows:
+          - {customer_id: c_1, customer_unique_id: person_1, customer_state: SP}
+          - {customer_id: c_2, customer_unique_id: person_1, customer_state: RJ}
+          - {customer_id: c_3, customer_unique_id: person_1, customer_state: MG}
+          - {customer_id: c_4, customer_unique_id: person_2, customer_state: BA}
+    expect:
+      rows:
+        - {order_id: o_a, customer_unique_id: person_1, order_number: 1, customer_state: RJ}
+        - {order_id: o_b, customer_unique_id: person_1, order_number: 2, customer_state: SP}
+        - {order_id: o_c, customer_unique_id: person_1, order_number: 3, customer_state: MG}
+        - {order_id: o_d, customer_unique_id: person_2, order_number: 1, customer_state: BA}
+
+  - name: test_latest_review_wins_and_the_count_is_kept
+    description: >
+      An order reviewed twice keeps the later review and reports review_count 2 (D14). When two reviews were answered at
+      the same moment the smaller review_id wins, so the choice never depends on row order.
+    model: int_order_reviews
+    given:
+      - input: ref('stg_olist__order_reviews')
+        rows:
+          - {review_id: r_1, order_id: o_1, review_score: 1, review_answer_timestamp: '2018-01-02 10:00:00'}
+          - {review_id: r_2, order_id: o_1, review_score: 5, review_answer_timestamp: '2018-01-05 10:00:00'}
+          - {review_id: r_3, order_id: o_2, review_score: 3, review_answer_timestamp: '2018-01-03 10:00:00'}
+          - {review_id: r_5, order_id: o_3, review_score: 2, review_answer_timestamp: '2018-01-04 10:00:00'}
+          - {review_id: r_4, order_id: o_3, review_score: 4, review_answer_timestamp: '2018-01-04 10:00:00'}
+    expect:
+      rows:
+        - {order_id: o_1, review_id: r_2, review_score: 5, review_count: 2}
+        - {order_id: o_2, review_id: r_3, review_score: 3, review_count: 1}
+        - {order_id: o_3, review_id: r_4, review_score: 4, review_count: 2}
+
+  - name: test_primary_payment_is_the_largest_and_ties_go_to_the_earlier_payment
+    description: >
+      The primary type is that of the largest payment (D15). On an exact tie in value the earlier payment_sequential
+      wins (D43). Totals, counts and the largest instalment count are rolled up with it.
+    model: int_order_payments
+    given:
+      - input: ref('stg_olist__order_payments')
+        rows:
+          - {order_id: o_1, payment_sequential: 1, payment_type: credit_card, payment_installments: 1, payment_value: 30.00}
+          - {order_id: o_1, payment_sequential: 2, payment_type: voucher, payment_installments: 3, payment_value: 70.00}
+          - {order_id: o_2, payment_sequential: 1, payment_type: boleto, payment_installments: 1, payment_value: 50.00}
+          - {order_id: o_2, payment_sequential: 2, payment_type: credit_card, payment_installments: 1, payment_value: 50.00}
+    expect:
+      rows:
+        - {order_id: o_1, payment_total: 100.00, payment_count: 2, installments_max: 3, primary_payment_type: voucher}
+        - {order_id: o_2, payment_total: 100.00, payment_count: 2, installments_max: 1, primary_payment_type: boleto}

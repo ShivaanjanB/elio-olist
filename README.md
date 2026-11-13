@@ -16,7 +16,7 @@ Raw Olist CSVs → Snowflake `RAW` → dbt staging (normalised) → marts (star 
 | `data/raw/` | Olist CSVs from Kaggle (not committed) |
 | `docs/decision_log.md` | Every design decision, with the alternatives, the reason and the evidence |
 
-## Run dbt (staging so far)
+## Run dbt
 
 Needs the ingest to have been run first, so the `RAW` tables exist (see [`ingest/README.md`](ingest/README.md#run-order)).
 
@@ -27,10 +27,18 @@ From the repo root, in PowerShell:
 cd dbt_project
 Copy-Item profiles.yml.example profiles.yml            # once; git-ignored, holds no secrets (values come from the environment)
 ..\.venv\Scripts\dbt.exe debug                         # connection check
-..\.venv\Scripts\dbt.exe build --select staging        # builds the 8 views in STAGING and runs every test
+..\.venv\Scripts\dbt.exe build --select staging intermediate marts   # builds 8 + 4 views and 6 tables, runs every test
 ```
 
-Expected: `PASS=51 WARN=1 ERROR=0`. The one warning is deliberate: 13 products belong to 2 categories with no English
-translation (decision D22), and it is a `warn` test so it stays visible without failing the build.
+Expected: `PASS=172 WARN=1 ERROR=0` (173 checks: 6 unit tests, the data tests and the singular tests). The one warning is
+deliberate: 13 products belong to 2 categories with no English translation (decision D22), and it is a `warn` test so it stays
+visible without failing the build.
+
+To look at the numbers yourself after a build, run the sanity queries, which say what each result should be:
+
+```powershell
+cd ..
+.\.venv\Scripts\python.exe ingest\run_sql.py docs\mart_checks.sql
+```
 
 Always pass `--select`; `build` runs models and tests together (a model that builds but fails its tests is not done).
