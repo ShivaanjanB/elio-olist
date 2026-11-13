@@ -1,0 +1,396 @@
+version: 2
+
+# Marts: the star schema the analysis reads (docs/data_model.md section 7). Every model has an ENFORCED CONTRACT (D38):
+# each column is declared with its type, and dbt refuses to build the table if the query's columns or types differ.
+# That makes the shape of these tables a promise that cannot drift silently.
+#
+# Keys are proved with tests, since Snowflake does not enforce them (D11): unique and not_null on every key, and a
+# relationships test from each fact column to the dimension it points at.
+
+models:
+  # ---------------------------------------------------------------- dimensions
+  - name: dim_customer
+    description: >
+      One row per PERSON (96,096), keyed on customer_unique_id, because the customer_id on an order is new every time. The
+      location columns are those of the person's first order (D12).
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: customer_sk
+        data_type: varchar(32)
+        description: Surrogate key, a hash of customer_unique_id. What fct_orders.customer_sk points at (D41).
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_unique_id
+        data_type: varchar(32)
+        description: The person's natural id from the source. Use it to find a person in the raw files.
+        data_tests:
+          - unique
+          - not_null
+      - name: first_order_id
+        data_type: varchar(32)
+        description: The person's earliest order (ties on the timestamp broken by order_id, D13). Joins to fct_orders.order_id.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_orders')
+                field: order_id
+      - name: first_order_date
+        data_type: date
+        description: Day of the first order.
+        data_tests:
+          - not_null
+      - name: order_count
+        data_type: number(10,0)
+        description: How many orders the person placed, whatever their status.
+        data_tests:
+          - not_null
+      - name: is_repeat_customer
+        data_type: boolean
+        description: True when the person placed more than one order. Includes people whose first order was canceled (D39).
+        data_tests:
+          - not_null
+      - name: first_order_state
+        data_type: varchar(2)
+        description: State on the first order's address.
+        data_tests:
+          - not_null
+      - name: first_order_city
+        data_type: varchar
+        description: City on the first order's address, as typed by the customer.
+      - name: first_order_zip_code_prefix
+        data_type: varchar(5)
+        description: Zip prefix on the first order's address, kept as text to keep leading zeros (D08).
+
+  - name: dim_product
+    description: >
+      One row per product (32,951). The category is the English name, else the Portuguese one, else 'unknown' (D22).
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: product_sk
+        data_type: varchar(32)
+        description: Surrogate key, a hash of product_id. What fct_order_items.product_sk points at (D41).
+        data_tests:
+          - unique
+          - not_null
+      - name: product_id
+        data_type: varchar(32)
+        description: The product's natural id from the source.
+        data_tests:
+          - unique
+          - not_null
+      - name: category_name
+        data_type: varchar
+        description: >
+          Category in English. Falls back to the Portuguese name for 13 products whose category has no translation, and to
+          'unknown' for 610 products with no category.
+        data_tests:
+          - not_null
+      - name: weight_g
+        data_type: number(10,0)
+        description: Package weight in grams. NULL for 2 products; 4 products weigh 0 (kept as stated, D26).
+      - name: volume_cm3
+        data_type: number(10,0)
+        description: Package length x height x width in cubic centimetres. NULL for 2 products.
+
+  - name: dim_seller
+    description: One row per seller (3,095). Needed for the per-seller late-rate analysis (D23).
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: seller_sk
+        data_type: varchar(32)
+        description: Surrogate key, a hash of seller_id. What fct_order_items.seller_sk points at (D41).
+        data_tests:
+          - unique
+          - not_null
+      - name: seller_id
+        data_type: varchar(32)
+        description: The seller's natural id from the source.
+        data_tests:
+          - unique
+          - not_null
+      - name: zip_code_prefix
+        data_type: varchar(5)
+        description: First five digits of the seller's postal code, kept as text (D08).
+      - name: city
+        data_type: varchar
+        description: City as given by the seller. Free text.
+      - name: state
+        data_type: varchar(2)
+        description: Two-letter state code.
+        data_tests:
+          - not_null
+
+  - name: dim_date
+    description: >
+      One row per calendar day from 2016-01-01 to 2018-12-31 (1,096 rows), covering every purchase and every estimated
+      delivery date (D25). Join on the date.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: date_day
+        data_type: date
+        description: The calendar day. The key.
+        data_tests:
+          - unique
+          - not_null
+      - name: year
+        data_type: number(4,0)
+        description: Calendar year.
+        data_tests:
+          - not_null
+      - name: quarter
+        data_type: number(1,0)
+        description: Calendar quarter, 1 to 4.
+        data_tests:
+          - not_null
+      - name: month
+        data_type: number(2,0)
+        description: Calendar month, 1 to 12.
+        data_tests:
+          - not_null
+      - name: year_month
+        data_type: varchar(7)
+        description: Year and month as text, like 2017-11. Sorts correctly, so use it to group by month.
+        data_tests:
+          - not_null
+      - name: month_name
+        data_type: varchar(3)
+        description: Three-letter month name.
+      - name: day_of_week
+        data_type: number(1,0)
+        description: ISO weekday, 1 = Monday to 7 = Sunday.
+        data_tests:
+          - not_null
+      - name: day_name
+        data_type: varchar(3)
+        description: Three-letter weekday name.
+      - name: is_weekend
+        data_type: boolean
+        description: True for Saturday and Sunday.
+        data_tests:
+          - not_null
+
+  # --------------------------------------------------------------------- facts
+  - name: fct_orders
+    description: >
+      One row per order (99,441): the spine of the star. Holds every order, including those with no items, payments or
+      reviews, which carry counts of 0 and a NULL score (D21). Everything from the child tables arrives already rolled up
+      to order grain, so no join repeats an order. Revenue is the sum of items_price_total where is_revenue_order is true.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_id
+        data_type: varchar(32)
+        description: The order. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_sk
+        data_type: varchar(32)
+        description: The person who placed the order. Joins to dim_customer.customer_sk.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_sk
+      - name: purchase_date
+        data_type: date
+        description: Day the order was placed. Joins to dim_date.date_day.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: purchase_timestamp
+        data_type: timestamp_ntz
+        description: When the order was placed, in the source's local time with no time zone (D09).
+        data_tests:
+          - not_null
+      - name: order_status
+        data_type: varchar
+        description: Lifecycle state of the order.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['delivered', 'shipped', 'canceled', 'unavailable', 'invoiced', 'processing', 'created', 'approved']
+      - name: is_revenue_order
+        data_type: boolean
+        description: >
+          False for canceled and unavailable orders, whose money was never collected (D17). Filter on this before summing
+          revenue.
+        data_tests:
+          - not_null
+      - name: customer_state
+        data_type: varchar(2)
+        description: State on this order's address. Use it for the breakdown by state.
+        data_tests:
+          - not_null
+      - name: customer_order_number
+        data_type: number(10,0)
+        description: Which order this was for the person, where 1 is their first. Counts canceled orders (D39).
+        data_tests:
+          - not_null
+      - name: is_first_order
+        data_type: boolean
+        description: True when customer_order_number is 1.
+        data_tests:
+          - not_null
+      - name: estimated_delivery_date
+        data_type: date
+        description: The delivery date promised to the customer.
+        data_tests:
+          - not_null
+      - name: delivered_date
+        data_type: date
+        description: Day the customer received the order. Set only for 'delivered' orders that have one (96,470), else NULL (D19).
+      - name: days_to_deliver
+        data_type: number(10,0)
+        description: Calendar days from purchase to delivery. NULL unless delivered_date is set (D19).
+      - name: days_vs_estimate
+        data_type: number(10,0)
+        description: Calendar days from the estimated to the actual delivery. Positive means late, negative means early. NULL unless delivered_date is set.
+      - name: is_late
+        data_type: boolean
+        description: >
+          True when delivered after the estimated date, compared as dates (D18). NULL (not false) when the delivery is not
+          measurable, so a rate over this column uses only delivered orders.
+      - name: item_count
+        data_type: number(10,0)
+        description: Units on the order. 0 for the 775 orders with no items.
+        data_tests:
+          - not_null
+      - name: seller_count
+        data_type: number(10,0)
+        description: Different sellers on the order. 0 when there are no items.
+        data_tests:
+          - not_null
+      - name: items_price_total
+        data_type: number(12,2)
+        description: Sum of item prices, excluding freight. The revenue figure for the order (D16).
+        data_tests:
+          - not_null
+      - name: freight_total
+        data_type: number(12,2)
+        description: Sum of item freight charges.
+        data_tests:
+          - not_null
+      - name: gmv
+        data_type: number(12,2)
+        description: Items price plus freight, the full amount charged for goods and delivery (D16).
+        data_tests:
+          - not_null
+      - name: payment_total
+        data_type: number(12,2)
+        description: Cash collected, the sum of all payments. Kept apart from revenue since it includes financing and vouchers (D16).
+        data_tests:
+          - not_null
+      - name: payment_count
+        data_type: number(10,0)
+        description: Number of payments on the order. 0 for the one delivered order with no payment.
+        data_tests:
+          - not_null
+      - name: primary_payment_type
+        data_type: varchar
+        description: Method of the largest payment. NULL when the order has no payment (D43).
+      - name: review_score
+        data_type: number(1,0)
+        description: Score of the latest review, 1 to 5. NULL for the 768 orders with no review, never 0 (D14).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+      - name: review_count
+        data_type: number(10,0)
+        description: Number of reviews the order has (0 if none, up to several).
+        data_tests:
+          - not_null
+
+  - name: fct_order_items
+    description: >
+      One row per unit on an order (112,650); three of the same product are three rows, so there is no quantity column. The
+      grain for anything by product, category or seller. Sum price over rows where is_revenue_order is true to get revenue.
+    config:
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, order_item_id]
+    columns:
+      - name: order_item_key
+        data_type: varchar(32)
+        description: Primary key, a hash of order_id and order_item_id (D41).
+        data_tests:
+          - unique
+          - not_null
+      - name: order_id
+        data_type: varchar(32)
+        description: The order the unit belongs to. Joins to fct_orders.order_id (many items to one order).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_orders')
+                field: order_id
+      - name: order_item_id
+        data_type: number(10,0)
+        description: Position of the unit within its order, starting at 1.
+        data_tests:
+          - not_null
+      - name: product_sk
+        data_type: varchar(32)
+        description: The product sold. Joins to dim_product.product_sk.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_sk
+      - name: seller_sk
+        data_type: varchar(32)
+        description: The seller who fulfilled the unit. Joins to dim_seller.seller_sk.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_seller')
+                field: seller_sk
+      - name: purchase_date
+        data_type: date
+        description: Day the order was placed, read from fct_orders. Joins to dim_date.date_day.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: is_revenue_order
+        data_type: boolean
+        description: False when the order was canceled or unavailable (D17). Read from fct_orders so it is defined once.
+        data_tests:
+          - not_null
+      - name: price
+        data_type: number(12,2)
+        description: Price of the unit, excluding freight. Revenue is the sum of this where is_revenue_order is true (D16).
+        data_tests:
+          - not_null
+      - name: freight_value
+        data_type: number(12,2)
+        description: Delivery charge for the unit. 383 units are 0.00 (kept as stated, D26).
+        data_tests:
+          - not_null
