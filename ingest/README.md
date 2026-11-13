@@ -28,6 +28,43 @@ Copy `.env.example` to `.env` and fill it in. Then load it into your shell:
 - Windows: `. .\scripts\load_env.ps1`
 - macOS/Linux: `set -a; . ./.env; set +a`
 
+### 4. Download the data
+Download the Olist dataset from Kaggle and unzip the nine CSVs into `data/raw/`. The folder is git-ignored. Geolocation is downloaded but not loaded.
+
+## Run order
+From the repo root in PowerShell, after `. .\scripts\load_env.ps1`. `py` below means `.\.venv\Scripts\python.exe`. Every Snowflake step runs as the service user `ELIO_SVC` with role `ELIO_TRANSFORMER`.
+
+| # | Command | What it does |
+|---|---|---|
+| 1 | `py ingest\run_sql.py ingest\01_file_format.sql` | Creates the file format `RAW.OLIST_CSV` |
+| 2 | `py ingest\run_sql.py ingest\02_stage.sql` | Creates the internal stage `RAW.OLIST_STAGE` (with a directory table) |
+| 3 | `py ingest\02_upload_files.py` | `PUT`s the eight CSVs to the stage (`OVERWRITE=FALSE`: safe to repeat) |
+| 4 | `py ingest\run_sql.py ingest\02_check_staged_files.sql` | Reads the staged files through the format: record counts, line endings, accents, byte-order mark |
+| 5 | `py ingest\run_sql.py ingest\03_raw_tables.sql` | Creates the eight RAW tables (`IF NOT EXISTS`) |
+| 6 | `py ingest\03_check_raw_tables.py` | Checks each table's columns against its CSV header |
+| 7 | `py ingest\04_dry_run.py` | Dry run of every file with `VALIDATION_MODE`. Must show 0 error rows. |
+| 8 | `py ingest\run_sql.py ingest\04_load.sql` | Loads the tables, one `COPY INTO` each, with `ON_ERROR = ABORT_STATEMENT` |
+| 9 | `py ingest\05_reconcile.py` | Four-way row-count reconciliation. Must show OK for every table. |
+| 10 | `py ingest\run_sql.py ingest\05_check_loaded_data.sql` | Checks the loaded data: blanks, zip prefixes, accents, line endings, profile facts |
+
+**Rebuild RAW from the staged files:** run `ingest\truncate_raw_tables.sql` through `run_sql.py`, then steps 7 to 9. Running step 8 again *without* truncating loads nothing, because Snowflake remembers which files it loaded.
+
+Findings, decisions and assumptions are in [LOAD_NOTES.md](LOAD_NOTES.md).
+
+## Pinned versions
+| Tool | Version |
+|---|---|
+| Python | 3.13.15 |
+| dbt-core | 1.12.7 (pinned in `requirements.txt`) |
+| dbt-snowflake | 1.12.5 (pinned in `requirements.txt`) |
+| snowflake-connector-python | 5.2.0 (pinned in `requirements.txt`) |
+| Snowflake (server, reported at sign-in) | 10.41.101 |
+| openssl (key generation, from Git for Windows) | 3.5.7 |
+| Git | 2.55.0 |
+| Operating system | Windows 11 (build 10.0.26200) |
+
+Install with `pip install -r requirements.txt` in a fresh virtual environment.
+
 ## Pre-load profile of the files
 Before loading anything, I profiled the raw CSVs with `python ingest/profile_csvs.py data/raw` (stdlib only):
 

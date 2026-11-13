@@ -1,3 +1,6 @@
-# Pinned so the pipeline rebuilds identically elsewhere. Tested on Python 3.13.
+# Pinned so the pipeline rebuilds identically elsewhere. Tested on Python 3.13.15.
 dbt-core==1.12.7
 dbt-snowflake==1.12.5
+# Used by the ingest scripts. It is also installed as a dependency of dbt-snowflake; pinned here too
+# so the ingest does not depend on which version that resolves to.
+snowflake-connector-python==5.2.0
