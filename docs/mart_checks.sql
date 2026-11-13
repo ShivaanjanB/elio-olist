@@ -46,15 +46,27 @@ FROM MARTS.FCT_ORDERS;
 --    was canceled or unavailable, 55 of whom ordered again.
 SELECT
     COUNT(*)                                                                AS people,
-    COUNT_IF(d.is_repeat_customer)                                          AS repeat_people,
+    COUNT_IF(d.has_multiple_orders)                                          AS repeat_people,
     COUNT_IF(NOT o.is_revenue_order)                                        AS first_order_not_revenue,
-    COUNT_IF(NOT o.is_revenue_order AND d.is_repeat_customer)               AS not_revenue_and_repeat
+    COUNT_IF(NOT o.is_revenue_order AND d.has_multiple_orders)               AS not_revenue_and_repeat
 FROM MARTS.DIM_CUSTOMER d
 JOIN MARTS.FCT_ORDERS o ON o.order_id = d.first_order_id;
 
--- 7. Exactly one first order per person. Expect 96,096 and 96,096.
-SELECT COUNT_IF(is_first_order) AS first_orders, COUNT(DISTINCT customer_sk) AS people_in_fact
-FROM MARTS.FCT_ORDERS;
+-- 7. Exactly one first order per person (checked per person, so one person with none and another with two cannot hide
+--    behind matching totals). Expect 0 people that break the rule.
+SELECT COUNT(*) AS people_without_exactly_one_first_order
+FROM (
+    SELECT customer_sk FROM MARTS.FCT_ORDERS
+    GROUP BY customer_sk HAVING COUNT_IF(is_first_order) <> 1
+);
+
+-- 7b. "Came back" has two meanings (D46). Expect 2,997 people with more than one order, 93,248 with a delivered first
+--     order, and 1,813 of those placing a later non-canceled order on or after the delivery day.
+SELECT
+    COUNT_IF(has_multiple_orders)                     AS has_multiple_orders,
+    COUNT_IF(repeat_after_first_delivery IS NOT NULL) AS delivered_first_order,
+    COUNT_IF(repeat_after_first_delivery)             AS returned_after_delivery
+FROM MARTS.DIM_CUSTOMER;
 
 -- 8. Orders missing a child (D14, D21). Expect 775 orders with no items, 768 with no review, 1 delivered order with no
 --    payment; 547 orders with several reviews.
@@ -97,3 +109,29 @@ SELECT
     (SELECT COUNT(*) FROM MARTS.FCT_ORDERS o
       WHERE NOT EXISTS (SELECT 1 FROM MARTS.DIM_DATE d WHERE d.date_day = o.purchase_date)) AS orders_outside_calendar
 FROM MARTS.DIM_DATE;
+
+-- 13. The revenue columns do the filtering (D47). Expect 13,494,400.74 from both facts, and 13,591,643.70 for the
+--     unfiltered price, so a plain SUM(revenue) cannot include canceled orders by mistake.
+SELECT
+    (SELECT SUM(revenue) FROM MARTS.FCT_ORDER_ITEMS)   AS revenue_items,
+    (SELECT SUM(revenue) FROM MARTS.FCT_ORDERS)        AS revenue_orders,
+    (SELECT SUM(price) FROM MARTS.FCT_ORDER_ITEMS)     AS price_unfiltered;
+
+-- 14. A seller's late rate: by order, not by unit (D48). Overall expect 6,534 late of 96,470 orders (6.77%) by order and
+--     7,264 of 110,189 items (6.59%) by unit, which is why units are the wrong thing to count.
+SELECT
+    COUNT(DISTINCT IFF(is_late IS NOT NULL, order_id, NULL))   AS measurable_orders,
+    COUNT(DISTINCT IFF(is_late, order_id, NULL))               AS late_orders,
+    COUNT_IF(is_late IS NOT NULL)                              AS measurable_units,
+    COUNT_IF(is_late)                                          AS late_units
+FROM MARTS.FCT_ORDER_ITEMS;
+
+-- 15. Repeat after delivery by whether the first delivery was late (the Q5 shape). Expect on time 1.99%, late 1.26%;
+--     the naive flag would say 3.13% and 2.54%. Early cohorts return more often than late ones (3.5% down to 0.5%
+--     by delivery quarter), which is a follow-up-window effect to control for, not a finding.
+SELECT o.is_late, COUNT(*) AS people,
+       COUNT_IF(d.repeat_after_first_delivery) AS returned,
+       ROUND(100 * COUNT_IF(d.repeat_after_first_delivery) / COUNT(*), 2) AS returned_pct
+FROM MARTS.DIM_CUSTOMER d JOIN MARTS.FCT_ORDERS o ON o.order_id = d.first_order_id
+WHERE d.repeat_after_first_delivery IS NOT NULL
+GROUP BY o.is_late ORDER BY o.is_late;
