@@ -42,3 +42,17 @@ cd ..
 ```
 
 Always pass `--select`; `build` runs models and tests together (a model that builds but fails its tests is not done).
+
+## Run the analytics
+
+After `dbt build` has created the marts (see above), from the repo root in PowerShell:
+
+```powershell
+. .\scripts\load_env.ps1
+.\.venv\Scripts\python.exe ingest\run_sql.py sql\analytics_queries.sql   # the five queries (Q1 to Q5)
+.\.venv\Scripts\python.exe ingest\run_sql.py sql\analytics_checks.sql    # recomputes each headline from staging; every ok must be True
+```
+
+`sql/analytics_queries.sql` uses fully qualified names throughout, so each statement also runs on its own in Snowsight.
+The figures and what they mean are recorded in [`docs/analytics_results.md`](docs/analytics_results.md).
+
