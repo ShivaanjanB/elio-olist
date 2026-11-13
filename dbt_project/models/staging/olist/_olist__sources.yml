@@ -1,0 +1,31 @@
+version: 2
+
+sources:
+  - name: olist
+    description: >
+      The Olist e-commerce CSVs as loaded by the ingest scripts into ELIO_OLIST.RAW: one table per file, every
+      source column as text, plus three lineage columns (_source_file, _source_row, _loaded_at). Never edited.
+      A static export, so no freshness check is configured.
+    database: ELIO_OLIST
+    schema: RAW
+    tables:
+      - name: orders
+        description: One row per order (99,441). Carries the status and the five lifecycle timestamps.
+      - name: order_items
+        description: One row per unit on an order (112,650). Has no quantity column, so a quantity of 3 is three rows.
+      - name: customers
+        description: >
+          One row per customer_id (99,441), which is NEW on every order, so each is used by exactly one order.
+          customer_unique_id identifies the person (96,096 people).
+      - name: order_payments
+        description: One row per payment on an order (103,886). An order can be paid in several pieces.
+      - name: order_reviews
+        description: >
+          One row per review of an order (99,224). review_id alone is not unique (98,410 distinct) and 547 orders
+          have more than one review.
+      - name: products
+        description: One row per product (32,951). The category and descriptive fields are blank for 610 products.
+      - name: sellers
+        description: One row per seller (3,095).
+      - name: product_category_name_translation
+        description: One row per product category (71), with its Portuguese name and its English name.

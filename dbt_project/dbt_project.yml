@@ -1,0 +1,33 @@
+# The dbt project for the Olist pipeline. Run dbt from this folder (see ../README.md).
+#
+# Layers (docs/data_model.md, decision D03):
+#   staging       views   one model per RAW table: typed, renamed, normalised
+#   intermediate  views   roll children up to order grain (built in a later phase)
+#   marts         tables  the star schema (built in a later phase)
+name: olist
+version: "1.0.0"
+config-version: 2
+profile: olist
+
+# Pin the dbt version range this project was written and tested against (requirements.txt pins the exact one).
+require-dbt-version: [">=1.12.0", "<2.0.0"]
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target"]
+
+models:
+  olist:
+    staging:
+      +materialized: view
+      +schema: staging
+    # The next two blocks are added when those layers are built; until then dbt warns that they match no models.
+    #
+    # intermediate:
+    #   +materialized: view
+    #   +schema: intermediate
+    # marts:
+    #   +materialized: table
+    #   +schema: marts

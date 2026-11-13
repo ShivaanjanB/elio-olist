@@ -14,3 +14,23 @@ Raw Olist CSVs → Snowflake `RAW` → dbt staging (normalised) → marts (star 
 | `sql/analytics_queries.sql` | Analytics queries run against the marts |
 | `analysis_answers.md` | Insights, recommendation and client memo |
 | `data/raw/` | Olist CSVs from Kaggle (not committed) |
+| `docs/decision_log.md` | Every design decision, with the alternatives, the reason and the evidence |
+
+## Run dbt (staging so far)
+
+Needs the ingest to have been run first, so the `RAW` tables exist (see [`ingest/README.md`](ingest/README.md#run-order)).
+
+From the repo root, in PowerShell:
+
+```powershell
+. .\scripts\load_env.ps1                               # the same settings the ingest scripts use
+cd dbt_project
+Copy-Item profiles.yml.example profiles.yml            # once; git-ignored, holds no secrets (values come from the environment)
+..\.venv\Scripts\dbt.exe debug                         # connection check
+..\.venv\Scripts\dbt.exe build --select staging        # builds the 8 views in STAGING and runs every test
+```
+
+Expected: `PASS=51 WARN=1 ERROR=0`. The one warning is deliberate: 13 products belong to 2 categories with no English
+translation (decision D22), and it is a `warn` test so it stays visible without failing the build.
+
+Always pass `--select`; `build` runs models and tests together (a model that builds but fails its tests is not done).

@@ -1,0 +1,309 @@
+version: 2
+
+# Staging: one model per RAW table. Typed, renamed, nothing else (D04). Normalised: each table is one entity of
+# the 3NF model in docs/data_model.md, with its natural key. The three lineage columns (_source_file,
+# _source_row, _loaded_at) are carried through on every model (D32) so any staged row traces back to a file and record.
+#
+# Tests follow what the data was found to contain (docs/type_and_design_checks.sql, ingest/05_check_loaded_data.sql):
+# unique and not_null on every key, relationships on every foreign key, accepted_values on columns with a small known
+# set, and not_null only where the data has no blanks. Columns with expected blanks get no not_null test.
+
+models:
+  - name: stg_olist__orders
+    description: >
+      One row per order. The spine of the model: items, payments and reviews all hang off it. Timestamps carry no time
+      zone and are kept as the source local time (D09). Only 'delivered' orders with a customer-delivery date can be used
+      for delivery metrics (D19). 775 orders have no items and are mostly 'unavailable' or 'canceled'.
+    columns:
+      - name: order_id
+        description: Natural key. 32-character hash, unique per order.
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: >
+          The customer record used by this order. NEW on every order, so it is NOT a person: use customer_unique_id on
+          stg_olist__customers for people (D12).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__customers')
+                field: customer_id
+      - name: order_status
+        description: Lifecycle state. Canceled and unavailable orders do not count as revenue (D17).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['delivered', 'shipped', 'canceled', 'unavailable', 'invoiced', 'processing', 'created', 'approved']
+      - name: order_purchase_timestamp
+        description: When the customer placed the order. Never blank. The anchor for dates and for delivery times.
+        data_tests:
+          - not_null
+      - name: order_approved_at
+        description: When payment was approved. Blank for 160 orders (expected, no test).
+      - name: order_delivered_carrier_date
+        description: When the carrier picked the order up. Blank for 1,783 orders (expected, no test).
+      - name: order_delivered_customer_date
+        description: >
+          When the customer received it. Blank for 2,965 orders, including 8 with status 'delivered' (a source defect, D19).
+          Out of order against the carrier date for 23 orders (D20).
+      - name: order_estimated_delivery_date
+        description: >
+          The delivery date promised to the customer. Always at 00:00:00, so lateness is compared at DATE grain (D18).
+        data_tests:
+          - not_null
+      - name: _source_file
+        description: The staged file the row came from.
+      - name: _source_row
+        description: The record number within that file.
+      - name: _loaded_at
+        description: When Snowflake scanned the file during the load.
+
+  - name: stg_olist__order_items
+    description: >
+      One row per unit on an order, so there is no quantity column: three of the same product is three rows. Key is
+      (order_id, order_item_id). An order has up to 21 items and 1,278 orders mix sellers. Join it to payments only after
+      rolling payments up to order grain, or every total is inflated (D15).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, order_item_id]
+    columns:
+      - name: order_id
+        description: The order this unit belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: order_item_id
+        description: Position of the unit within the order, starting at 1. Not a product id.
+      - name: product_id
+        description: The product sold.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__products')
+                field: product_id
+      - name: seller_id
+        description: The seller who fulfilled this unit.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__sellers')
+                field: seller_id
+      - name: shipping_limit_date
+        description: The latest date the seller may hand the unit to the carrier.
+      - name: price
+        description: Price of the unit, excluding freight. This is what revenue is built from (D16).
+        data_tests:
+          - not_null
+      - name: freight_value
+        description: Delivery charge for the unit. 383 units have 0.00 freight (kept as stated, D26).
+        data_tests:
+          - not_null
+
+  - name: stg_olist__customers
+    description: >
+      One row per customer_id, and each customer_id is used by exactly one order, so this is really the address a person
+      used on one order. The same person has several rows (up to 17), possibly with different cities. The person is
+      customer_unique_id (96,096 people). A zip prefix does not determine the city (D24).
+    columns:
+      - name: customer_id
+        description: Natural key. New on every order. Matches stg_olist__orders.customer_id.
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_unique_id
+        description: Identifies the PERSON across orders. Count repeat customers on this column, never on customer_id.
+        data_tests:
+          - not_null
+      - name: customer_zip_code_prefix
+        description: First five digits of the postal code, kept as text because 23,995 start with 0 (D08).
+      - name: customer_city
+        description: City as typed on the order. Free text, up to 32 characters.
+      - name: customer_state
+        description: Two-letter state code. 27 distinct values.
+        data_tests:
+          - not_null
+      - name: _source_file
+        description: The staged file the row came from.
+      - name: _source_row
+        description: The record number within that file.
+      - name: _loaded_at
+        description: When Snowflake scanned the file during the load.
+
+  - name: stg_olist__order_payments
+    description: >
+      One row per payment on an order. Orders can be paid in pieces (up to 29) and by mixed methods, so payments are
+      rolled up to order grain before they meet anything else (D15). Key is (order_id, payment_sequential). One delivered
+      order has no payment at all.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, payment_sequential]
+    columns:
+      - name: order_id
+        description: The order this payment belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: payment_sequential
+        description: Order of this payment within its order, starting at 1.
+      - name: payment_type
+        description: >
+          How it was paid. 'not_defined' appears on 3 rows and is kept as the source states it (D26).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['credit_card', 'boleto', 'voucher', 'debit_card', 'not_defined']
+      - name: payment_installments
+        description: Number of instalments. 0 on 2 payments (kept as stated, D26).
+      - name: payment_value
+        description: Amount of this payment, including any financing. 9 payments are 0.00 (kept as stated, D26).
+        data_tests:
+          - not_null
+
+  - name: stg_olist__order_reviews
+    description: >
+      One row per review of an order, keyed by (review_id, order_id) because review_id alone repeats (98,410 distinct in
+      99,224 rows) and 547 orders have several reviews. Staging keeps them all; the 'latest review per order' rule lives in
+      the intermediate layer (D14). 768 orders have no review at all.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [review_id, order_id]
+    columns:
+      - name: review_id
+        description: Review identifier. NOT unique on its own.
+        data_tests:
+          - not_null
+      - name: order_id
+        description: The order being reviewed.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_olist__orders')
+                field: order_id
+      - name: review_score
+        description: Satisfaction from 1 (worst) to 5 (best).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+      - name: review_comment_title
+        description: Optional title in Portuguese. Blank for 87,656 reviews (expected, no test).
+      - name: review_comment_message
+        description: Optional free-text comment in Portuguese, which can contain line breaks. Blank for 58,247 reviews (expected, no test).
+      - name: review_creation_date
+        description: When the satisfaction survey was sent.
+      - name: review_answer_timestamp
+        description: When the customer answered. Used to pick the latest review for an order (D14).
+        data_tests:
+          - not_null
+      - name: _source_file
+        description: The staged file the row came from.
+      - name: _source_row
+        description: The record number within that file, counting records and not physical lines.
+      - name: _loaded_at
+        description: When Snowflake scanned the file during the load.
+
+  - name: stg_olist__products
+    description: >
+      One row per product. 610 products have no category and no descriptive fields, and 13 have a category with no English
+      translation (D22). The two length columns were misspelt 'lenght' in the source and are renamed here (D06).
+    columns:
+      - name: product_id
+        description: Natural key.
+        data_tests:
+          - unique
+          - not_null
+      - name: product_category_name
+        description: >
+          Category in Portuguese. Blank for 610 products (expected, no not_null test). Each non-blank value should exist in
+          the translation table: 13 products in 2 categories do not, so that check warns instead of failing (D22, D35).
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_olist__product_category_translation')
+                field: product_category_name
+              config:
+                severity: warn
+      - name: product_name_length
+        description: Characters in the product name. Blank for 610 products.
+      - name: product_description_length
+        description: Characters in the product description. Blank for 610 products.
+      - name: product_photos_qty
+        description: Number of photos. Blank for 610 products.
+      - name: product_weight_g
+        description: Weight in grams. Blank for 2 products; 4 products weigh 0 g (kept as stated, D26).
+      - name: product_length_cm
+        description: Package length in centimetres. Blank for 2 products.
+      - name: product_height_cm
+        description: Package height in centimetres. Blank for 2 products.
+      - name: product_width_cm
+        description: Package width in centimetres. Blank for 2 products.
+      - name: _source_file
+        description: The staged file the row came from.
+      - name: _source_row
+        description: The record number within that file.
+      - name: _loaded_at
+        description: When Snowflake scanned the file during the load.
+
+  - name: stg_olist__sellers
+    description: >
+      One row per seller. Like customers, city and state stay on the row: a zip prefix does not determine the city, and 17
+      seller prefixes even span more than one state (D24).
+    columns:
+      - name: seller_id
+        description: Natural key.
+        data_tests:
+          - unique
+          - not_null
+      - name: seller_zip_code_prefix
+        description: First five digits of the postal code, kept as text to keep leading zeros (D08).
+      - name: seller_city
+        description: City as given by the seller. Free text, up to 40 characters.
+      - name: seller_state
+        description: Two-letter state code. 23 distinct values.
+        data_tests:
+          - not_null
+      - name: _source_file
+        description: The staged file the row came from.
+      - name: _source_row
+        description: The record number within that file.
+      - name: _loaded_at
+        description: When Snowflake scanned the file during the load.
+
+  - name: stg_olist__product_category_translation
+    description: >
+      Lookup from the Portuguese category name to its English name, 71 rows. It lacks 2 categories that products use
+      (portateis_cozinha_e_preparadores_de_alimentos and pc_gamer), which the product dimension handles (D22).
+    columns:
+      - name: product_category_name
+        description: Category in Portuguese. Natural key.
+        data_tests:
+          - unique
+          - not_null
+      - name: product_category_name_english
+        description: The English name shown to analysts.
+        data_tests:
+          - not_null
+      - name: _source_file
+        description: The staged file the row came from.
+      - name: _source_row
+        description: The record number within that file. The file starts with a byte-order mark, which the load skipped.
+      - name: _loaded_at
+        description: When Snowflake scanned the file during the load.
