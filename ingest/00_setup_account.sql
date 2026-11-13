@@ -23,7 +23,9 @@ CREATE ROLE IF NOT EXISTS ELIO_TRANSFORMER
 GRANT ROLE ELIO_TRANSFORMER TO ROLE SYSADMIN;
 
 -- Let the person running this script use the role in Snowsight too.
-SET my_user = CURRENT_USER();
+-- Double quotes because trial user names can contain dots and lower case (e.g. first.last.123),
+-- and such names only work as quoted identifiers.
+SET my_user = '"' || CURRENT_USER() || '"';
 GRANT ROLE ELIO_TRANSFORMER TO USER IDENTIFIER($my_user);
 
 -- 2. Compute and storage ----------------------------------------------------
