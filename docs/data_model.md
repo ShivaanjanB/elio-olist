@@ -193,7 +193,7 @@ Snowflake does not enforce primary or foreign keys, so every key is **proved wit
 |---|---|---|
 | Staging | Natural keys, exactly as the source | `unique` and `not_null` on single keys; `unique_combination_of_columns` on `(order_id, order_item_id)`, `(order_id, payment_sequential)` and `(review_id, order_id)`; `relationships` on every foreign key; `accepted_values` on `order_status`, `payment_type` and `review_score` |
 | Intermediate | Natural keys, at order grain (`int_customer_orders` at order grain too) | `unique` and `not_null` on `order_id` |
-| Marts | Surrogate keys on the dimensions (`customer_sk`, `product_sk`, `seller_sk`) from `dbt_utils.generate_surrogate_key`; natural primary keys on the facts | `unique`, `not_null`, `relationships` from each fact to each dimension; reconciliation tests (below) |
+| Marts | Surrogate keys on the dimensions (`customer_sk`, `product_sk`, `seller_sk`) from a local `generate_surrogate_key` macro (D30); natural primary keys on the facts | `unique`, `not_null`, `relationships` from each fact to each dimension; reconciliation tests (below) |
 
 Reconciliation tests, which catch fan-out and lost rows:
 - `fct_orders` has exactly as many rows as `stg_olist__orders`.
@@ -295,7 +295,7 @@ erDiagram
 | `dim_customer` | One person (`customer_unique_id`) | `customer_sk` | `int_customer_orders` and `stg_olist__customers` (first order's location, D12) |
 | `dim_product` | One product | `product_sk` | `stg_olist__products` and the category translation (D22) |
 | `dim_seller` | One seller | `seller_sk` | `stg_olist__sellers` (D23) |
-| `dim_date` | One day, 2016-01-01 to 2018-12-31 | `date_day` | Generated with `dbt_utils.date_spine` (D25) |
+| `dim_date` | One day, 2016-01-01 to 2018-12-31 | `date_day` | Generated with a local date-spine macro (D25, D30) |
 
 Orders are the spine: `fct_orders` starts from **every** order and `LEFT JOIN`s the rest, so orders with no items, payments or reviews are kept with counts of 0 and a NULL score (D21).
 
