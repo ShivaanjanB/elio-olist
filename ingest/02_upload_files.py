@@ -8,7 +8,7 @@ What it does for each file listed below:
   * AUTO_COMPRESS=TRUE: Snowflake gzips it, so the staged name ends in .csv.gz
   * OVERWRITE=FALSE (the default, written out): running this twice never duplicates or
     replaces a staged file. Status SKIPPED on a second run means "already there".
-Then it LISTs the stage.
+Then it refreshes the stage's directory table (so Snowsight lists the files) and LISTs the stage.
 
 Geolocation (olist_geolocation_dataset.csv) is deliberately NOT uploaded: the analysis works
 at state level, which customers and sellers already carry (see ingest/README.md).
@@ -74,6 +74,10 @@ def main():
             cur.execute(f"PUT 'file://{path}' {STAGE} AUTO_COMPRESS=TRUE OVERWRITE=FALSE")
             source, target, src_size, tgt_size, _, _, status, _ = cur.fetchone()
             print(f"{name:<42}{status:<10}{src_size:>12,}{tgt_size:>14,}")
+
+        # The stage has a directory table (so Snowsight can list the files). On an internal stage
+        # it only learns about new files when refreshed.
+        cur.execute(f"ALTER STAGE {STAGE.lstrip('@')} REFRESH")
 
         print(f"\nLIST {STAGE}")
         cur.execute(f"LIST {STAGE}")
