@@ -23,7 +23,7 @@ REQUIRED = [
     "SNOWFLAKE_WAREHOUSE",
     "SNOWFLAKE_DATABASE",
 ]
-MAX_ROWS = 20  # rows printed per statement
+MAX_ROWS = 60  # rows printed per statement
 
 
 def read_sql(args):
