@@ -29,7 +29,7 @@ CREATE OR REPLACE FILE FORMAT ELIO_OLIST.RAW.OLIST_CSV
   ENCODING                       = 'UTF8'
   SKIP_BYTE_ORDER_MARK           = TRUE
   EMPTY_FIELD_AS_NULL            = TRUE
-  ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE    -- a row with the wrong number of fields fails loudly
+  ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE    -- wrong field count = error in a plain COPY / dry run (ignored by the SELECT-form load: see 04_dry_run.py)
   TRIM_SPACE                     = FALSE   -- RAW does no cleaning
   REPLACE_INVALID_CHARACTERS     = FALSE   -- invalid UTF-8 fails loudly instead of being swapped silently
   COMMENT = 'How to read the Olist CSVs: quoted fields, one header line, UTF-8';
