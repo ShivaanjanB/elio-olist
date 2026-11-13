@@ -1,0 +1,17 @@
+# Copy to profiles.yml (git-ignored) in this folder. It holds NO secrets: every value comes from
+# the same environment variables as the ingest scripts (see ../.env.example).
+# Load them first, from the repo root, in PowerShell:   . .\scripts\load_env.ps1
+# Then run dbt from this folder: dbt looks for profiles.yml in the current folder first.
+olist:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"                       # the service user ELIO_SVC
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"  # key pair, no password
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"                       # ELIO_TRANSFORMER
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"             # ELIO_WH
+      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"               # ELIO_OLIST
+      schema: staging        # default only; every model sets its own schema (see macros/generate_schema_name.sql)
+      threads: 4
