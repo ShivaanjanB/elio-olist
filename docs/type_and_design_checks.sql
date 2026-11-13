@@ -185,3 +185,31 @@ SELECT o.order_status, COUNT(DISTINCT o.order_id) AS orders_with_items, COUNT(*)
        ROUND(SUM(TRY_TO_NUMBER(i.price, 12, 2)), 2) AS price_total
 FROM ELIO_OLIST.RAW.ORDERS o JOIN ELIO_OLIST.RAW.ORDER_ITEMS i ON i.order_id = o.order_id
 GROUP BY 1 ORDER BY 4 DESC;
+-- 18. Phase 5 design questions, answered before building the intermediate models and marts.
+-- 18a. Orders by status for people's FIRST order: how many people's first order was canceled or unavailable?
+--      (decides whether "first order" should skip non-revenue orders)
+WITH o AS (SELECT c.customer_unique_id AS uid, o.order_status AS status, o.order_purchase_timestamp AS ts, o.order_id
+           FROM ELIO_OLIST.RAW.ORDERS o JOIN ELIO_OLIST.RAW.CUSTOMERS c ON c.customer_id = o.customer_id),
+ranked AS (SELECT uid, status, ROW_NUMBER() OVER (PARTITION BY uid ORDER BY ts, order_id) AS rn FROM o)
+SELECT status AS first_order_status, COUNT(*) AS people FROM ranked WHERE rn = 1 GROUP BY 1 ORDER BY 2 DESC;
+
+-- 18b. People with more than one order whose FIRST order was canceled or unavailable.
+WITH o AS (SELECT c.customer_unique_id AS uid, o.order_status AS status, o.order_purchase_timestamp AS ts, o.order_id
+           FROM ELIO_OLIST.RAW.ORDERS o JOIN ELIO_OLIST.RAW.CUSTOMERS c ON c.customer_id = o.customer_id),
+ranked AS (SELECT uid, status, ROW_NUMBER() OVER (PARTITION BY uid ORDER BY ts, order_id) AS rn, COUNT(*) OVER (PARTITION BY uid) AS n FROM o)
+SELECT COUNT(*) AS repeat_people_whose_first_order_was_not_revenue FROM ranked WHERE rn = 1 AND n > 1 AND status IN ('canceled', 'unavailable');
+
+-- 18c. Primary payment type = the payment with the largest value. Do the two largest payments of an order ever tie?
+WITH ranked AS (SELECT order_id, TRY_TO_NUMBER(payment_value, 12, 2) AS v, ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY TRY_TO_NUMBER(payment_value, 12, 2) DESC, TRY_TO_NUMBER(payment_sequential)) AS rn
+                FROM ELIO_OLIST.RAW.ORDER_PAYMENTS)
+SELECT COUNT(*) AS orders_where_the_two_largest_payments_tie
+FROM ranked a JOIN ranked b ON a.order_id = b.order_id AND a.rn = 1 AND b.rn = 2 WHERE a.v = b.v;
+
+-- 18d. Does any order mix payment types?  (how often "primary" matters)
+SELECT COUNT(*) AS orders_with_more_than_one_payment_type
+FROM (SELECT order_id FROM ELIO_OLIST.RAW.ORDER_PAYMENTS GROUP BY 1 HAVING COUNT(DISTINCT payment_type) > 1);
+
+-- 18e. Sanity range of delivery times among delivered orders (calendar days, purchase date to delivery date).
+SELECT MIN(d) AS min_days, MEDIAN(d) AS median_days, MAX(d) AS max_days, COUNT(*) AS orders FROM (
+  SELECT DATEDIFF('day', TO_DATE(order_purchase_timestamp), TO_DATE(order_delivered_customer_date)) AS d
+  FROM ELIO_OLIST.RAW.ORDERS WHERE order_status = 'delivered' AND order_delivered_customer_date IS NOT NULL);
