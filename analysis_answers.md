@@ -9,7 +9,11 @@ produces each figure is named in brackets, like [I1b]. Decisions are in [`docs/d
 with a lower repeat rate, but the group it affects is small, so the recommendation is a capped, randomised test that will show
 what a voucher actually does, not a promise of a revenue jump.
 
-## B1. Insight 1: late delivery against review score
+## B1. Commercial insights
+
+Two insights, each with the finding, the method behind it and why a stakeholder should care.
+
+### Insight 1: late delivery against review score
 
 **Method.** For delivered orders that have a review, compare the review score of orders that arrived after the promised date with
 those that did not, then split by how many days late. Review scores are a 1 to 5 rating, so a distribution and an average say it
@@ -43,7 +47,7 @@ early earns nothing extra, and arriving late costs a star even by a day or two.
 spread and the model would collapse to recency and spend. The question here is how one experience relates to a second purchase, so
 the method compares groups defined by that experience.
 
-## B2. Insight 2: repeat purchase against the first-order experience
+### Insight 2: repeat purchase against the first-order experience
 
 **Method.** Group customers by `customer_unique_id` (the person, since `customer_id` changes on every order). Take people whose
 first order was delivered and who have at least 180 days of data after that delivery, so everyone had the same time to come
@@ -73,7 +77,7 @@ after a bad experience is a place to test a fix.
 a bad review could reflect a bad product as much as a bad delivery. Only a randomised test can say whether fixing the experience
 changes what people do.
 
-## B3. Recommendation: a service-recovery test
+## B2. The recommendation: a service-recovery test
 
 **Do one thing: test an apology and a capped free-shipping voucher on the customers who had a bad first order, with a random
 holdout.** The aim is to find out what a voucher does to repeat purchase, at a cost that cannot hurt, before anyone spends on all
@@ -122,7 +126,9 @@ star (Insight 1), and the states with the highest late rates are AL (21.4%), MA 
 delivery dates or seller service levels there needs no voucher. This file does not size it, because the data cannot say what a
 longer promise does to purchases.
 
-## Caveats
+## B3. Assumptions, caveats and data quality
+
+### Assumptions and caveats
 
 - **Association, not cause** for both insights; only the test can show cause.
 - **Margin is unknown.** Every money figure is item revenue before costs, and the voucher break-even depends on a margin the data lacks.
@@ -135,7 +141,7 @@ longer promise does to purchases.
 - **No time zone** in the source timestamps (D09), which can move an order by a day around midnight; delivery and lateness are measured in whole days so the effect is small.
 - **Customers whose first order was canceled** are not in the repeat analysis (they have no delivery to react to); there are 1,153 of them (D39).
 
-## Top 3 production data checks
+### Top 3 production data checks
 
 Mapped to the data-quality dimensions they protect, with what exists today.
 
@@ -158,6 +164,26 @@ Next step: send the roughly 11,900 customers a year whose first order was late o
 
 Please approve the test and share your margin: the voucher pays back only above 18% to 40%. If it fails, we reset delivery promises in AL, MA and SE.
 <!-- memo:end -->
+
+## B5. LLM use case (proposed, not built)
+
+**Tag why customers were unhappy, from their own words.** About 41,000 of the 99,224 reviews carry a comment (58,247 are empty), written
+in Portuguese. A language model would read each comment and label the complaint reason, so the team can see whether a late delivery is
+the whole story or whether another problem sits behind the low scores. That checks the recommendation in B2 before money is spent on
+it: a voucher fits a delivery complaint, not a damaged or wrong item.
+
+| | |
+|---|---|
+| **Example prompt** | "Read this Portuguese customer review and label the main reason for any complaint: late delivery, damaged or defective product, wrong or missing item, seller or service, or none. Reply with up to two labels and a confidence from 0 to 1." Written for illustration, not taken from the data: "O produto chegou 15 dias atrasado e a caixa estava amassada" (the product arrived 15 days late and the box was crushed). |
+| **Data retrieved** | `review_comment_message` and the score from `stg_olist__order_reviews`, joined to `fct_orders` on `order_id` for the late flag. The comment text stops at staging today, so this needs one new model. |
+| **Output** | For the example: late delivery and damaged product, with a confidence for each. Stored as one row per review, then summed into counts of each reason for late orders against on-time orders. |
+| **Main risk** | Wrong labels on slang and misspellings; personal details in free text (names, phone numbers) leaving the account; and cost, because about 41,000 comments would be classified. |
+| **Mitigation** | Run it inside Snowflake with a Cortex classification function (such as `AI_CLASSIFY`) so the text stays in the account. Hand-label 100 to 200 comments first and report how often the model agrees before anyone relies on it. Try 20 rows to see the cost, and keep the account's 20-credit monthly cap in force. Use the result only as counts by reason, never to message a customer. |
+
+**Status: proposed, not run.** Whether Cortex is available in this account's region has not been checked, and a half-tested call
+should not be presented as working. The other options were set aside for the same kind of reason: plain-English questions of the
+marts duplicate the five queries and risk wrong joins on money figures, a model-drafted memo would put model-written numbers beside
+the 200-word memo, and model-written apology messages would change the voucher treatment that the randomised test relies on.
 
 ## Where each number comes from
 

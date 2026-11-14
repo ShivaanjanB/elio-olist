@@ -163,7 +163,7 @@ It opens at `http://127.0.0.1:8501` and listens on this machine only. Run it fro
 | `sql/analytics_queries.sql` | The five analytics queries (Q1 to Q5) |
 | `sql/insight_queries.sql` | The queries behind the insights and the campaign sizing |
 | `sql/*_checks.sql` | Independent recomputation of each headline figure from staging |
-| `analysis_answers.md` | Insights, recommendation, caveats, production checks and the client memo |
+| `analysis_answers.md` | B1 to B5: insights, recommendation, caveats and production checks, the client memo, and the LLM proposal |
 | `requirements.txt`, `.env.example`, `.gitignore` | Pinned dependencies, the environment template, and what is kept out of git (credentials, `profiles.yml`, `target/`, `logs/`, data) |
 | `data/raw/` | The Olist CSVs from Kaggle. Not committed |
 
