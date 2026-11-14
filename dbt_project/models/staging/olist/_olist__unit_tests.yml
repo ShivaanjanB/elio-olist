@@ -1,0 +1,41 @@
+version: 2
+
+# Unit tests for the staging layer. The real data has no repeated keys, so these made-up rows are what show the
+# de-duplication rule working: the newest load wins, a tie goes to the later row, and a review_id repeated across
+# DIFFERENT orders is not a duplicate (the key is the pair).
+
+unit_tests:
+  - name: test_stg_orders_keeps_the_newest_load_of_a_repeated_order
+    description: >
+      An order loaded twice keeps the newer copy. Two copies from the same load keep the one from the later file row,
+      so the result never depends on the order the rows are read (D71).
+    model: stg_olist__orders
+    given:
+      - input: source('olist', 'orders')
+        rows:
+          - {order_id: o1, customer_id: c1, order_status: shipped, _source_file: orders.csv, _source_row: 1, _loaded_at: '2026-01-01 10:00:00'}
+          - {order_id: o1, customer_id: c1, order_status: delivered, _source_file: orders.csv, _source_row: 1, _loaded_at: '2026-01-02 10:00:00'}
+          - {order_id: o2, customer_id: c2, order_status: created, _source_file: orders.csv, _source_row: 3, _loaded_at: '2026-01-01 10:00:00'}
+          - {order_id: o2, customer_id: c2, order_status: approved, _source_file: orders.csv, _source_row: 4, _loaded_at: '2026-01-01 10:00:00'}
+          - {order_id: o3, customer_id: c3, order_status: delivered, _source_file: orders.csv, _source_row: 5, _loaded_at: '2026-01-01 10:00:00'}
+    expect:
+      rows:
+        - {order_id: o1, order_status: delivered}
+        - {order_id: o2, order_status: approved}
+        - {order_id: o3, order_status: delivered}
+
+  - name: test_stg_order_reviews_key_is_the_pair_not_the_review_id
+    description: >
+      The same review_id on two different orders is two reviews and both stay (this happens in the real data). Only a
+      repeat of the same (review_id, order_id) pair collapses, to its newest copy (D71).
+    model: stg_olist__order_reviews
+    given:
+      - input: source('olist', 'order_reviews')
+        rows:
+          - {review_id: r1, order_id: o1, review_score: '5', _source_file: reviews.csv, _source_row: 1, _loaded_at: '2026-01-01 10:00:00'}
+          - {review_id: r1, order_id: o2, review_score: '4', _source_file: reviews.csv, _source_row: 2, _loaded_at: '2026-01-01 10:00:00'}
+          - {review_id: r1, order_id: o2, review_score: '1', _source_file: reviews.csv, _source_row: 9, _loaded_at: '2026-01-02 10:00:00'}
+    expect:
+      rows:
+        - {review_id: r1, order_id: o1, review_score: 5}
+        - {review_id: r1, order_id: o2, review_score: 1}
