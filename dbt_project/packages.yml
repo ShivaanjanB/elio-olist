@@ -1,0 +1,4 @@
+# No dbt packages are used (decision D30). The three helpers this project needs (a composite-key test, a surrogate-key
+# macro and a date spine) are short local code in macros/ and tests/, so there is nothing third-party to download or trust.
+# The file is kept so that `dbt deps` runs cleanly from a fresh clone and so adding a package later is one line here.
+packages: []
