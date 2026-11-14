@@ -45,6 +45,10 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
+On Windows, clone into a short folder (for example `C:\src\elio-olist`): in a deeply nested folder `pip` can hit Windows's
+260-character path limit unless long paths are enabled. `pip` may also print a warning about an optional extra
+(`secure-local-storage`), which is harmless.
+
 **2. One-off manual setup** (these need a person, so they are not scripted). The details are in
 [`ingest/README.md`](ingest/README.md#one-off-manual-steps):
 
@@ -54,7 +58,8 @@ python -m venv .venv
 3. Copy `.env.example` to `.env` and fill it in (account, user, key path, role, warehouse, database). It is git-ignored.
 4. Unzip the nine Kaggle CSVs into `data/raw/` (git-ignored). Geolocation is downloaded but not loaded (decision D27).
 
-**3. Load the raw files.** Run these in order from the repo root. Every step is safe to repeat. The full explanation, the load
+**3. Load the raw files.** Run steps 3 to 5 in the same PowerShell window, from the repo root, because they share the
+environment variables and the `$py` variable. Every step is safe to repeat. The full explanation, the load
 notes and the rebuild path are in [`ingest/README.md`](ingest/README.md) and [`ingest/LOAD_NOTES.md`](ingest/LOAD_NOTES.md).
 
 ```powershell
@@ -99,6 +104,10 @@ never treated as done.
 
 Every statement uses fully qualified names, so any of them also runs on its own in Snowsight.
 
+**Checked from a fresh clone.** The steps above were run from a new clone with a new virtual environment (steps 3 to 5, against
+the account that was already set up). Every command succeeded, `dbt build` took about 35 seconds and gave
+`PASS=173 WARN=1 ERROR=0`, and every `ok` in the two cross-check files was `True`.
+
 ## How the pipeline is built
 
 | Layer | Schema | Materialised as | Why |
@@ -109,7 +118,7 @@ Every statement uses fully qualified names, so any of them also runs on its own 
 | Marts | `MARTS` | Tables | The star schema: `fct_orders`, `fct_order_items`, `dim_customer`, `dim_product`, `dim_seller`, `dim_date`. Analysts hit these, so the join cost is paid once |
 
 Snowflake does not enforce keys, so every key is proved with a dbt test, and every mart has an enforced contract (names and types
-declared, and dbt refuses to build if they differ). 60 decisions, each with the alternatives, the reason and the evidence, are in
+declared, and dbt refuses to build if they differ). 62 decisions, each with the alternatives, the reason and the evidence, are in
 [`docs/decision_log.md`](docs/decision_log.md). The entity-relationship diagram, normalisation argument and star schema are in
 [`docs/data_model.md`](docs/data_model.md).
 
