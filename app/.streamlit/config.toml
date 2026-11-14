@@ -1,0 +1,42 @@
+# The look of the app, set through Streamlit's own theme options (no injected CSS).
+# Run Streamlit from this folder so it finds this file:  cd app; streamlit run streamlit_app.py
+#
+# One locked light theme. Blue means a delivery that kept its promise and crimson means a late one; the four chart colours
+# passed a palette check (lightness band, chroma floor, colour-vision separation, contrast). The same hex values
+# are in olist_app/style.py for the places a chart needs a fixed meaning.
+
+[theme]
+base = "light"
+primaryColor = "#2468A8"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F4F8"
+textColor = "#1B2430"
+linkColor = "#2468A8"
+borderColor = "#D5DCE5"
+
+# Public Sans: designed for clear reading of public information and numbers. If the browser is offline it falls back to the
+# system sans-serif.
+font = "Public Sans:https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap"
+headingFontSizes = ["2rem", "1.5rem", "1.2rem", "1.05rem", "0.95rem", "0.9rem"]
+headingFontWeights = [650, 600, 600, 600, 600, 600]
+metricValueFontWeight = 600
+
+baseRadius = "small"
+showWidgetBorder = true
+
+chartCategoricalColors = ["#2468A8", "#C0283D", "#B9861A", "#2A9D8F"]
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Local use only: listen on this machine, not on the network.
+address = "127.0.0.1"
+
+[global]
+# The scenario buttons set a bound slider through Session State, which is the documented way to move a widget that is bound to the
+# URL. Streamlit logs a warning about that on every first use; it is expected here, so it is switched off to keep the log readable.
+disableWidgetStateDuplicationWarning = true
