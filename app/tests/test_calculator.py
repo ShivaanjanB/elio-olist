@@ -17,7 +17,7 @@ SNAPSHOT = json.loads((APP_DIR / "snapshot" / "snapshot.json").read_text(encodin
 CAMPAIGN = SNAPSHOT["campaign"]
 CAP = 15  # the voucher cap in analysis_answers.md
 
-# The scenario table in analysis_answers.md (section B3), in reais and counts.
+# The scenario table in analysis_answers.md (section B2, the recommendation), in reais and counts.
 DOCUMENTED = {
     0.0025: dict(extra_orders=30, extra_revenue=3703, voucher_cost=1480, net=2224, cost_per_extra=50, break_even=0.40, at_risk=740, needed=19294),
     0.0050: dict(extra_orders=60, extra_revenue=7407, voucher_cost=1891, net=5516, cost_per_extra=32, break_even=0.26, at_risk=945, needed=5593),
