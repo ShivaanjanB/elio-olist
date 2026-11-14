@@ -199,6 +199,7 @@ Singular tests on the marts, which catch what key tests cannot (D45). Each retur
 - `marts_row_counts_match_staging`: every mart has exactly the rows of the grain it should (99,441 orders, 112,650 items, 96,096 people, 32,951 products, 3,095 sellers, 1,096 days).
 - `marts_totals_reconcile`: item price, freight, item count, payment total, payment count and reviewed orders add up to staging. A fan-out leaves every key unique and still inflates a sum, which is what this catches.
 - `marts_one_first_order_per_person`: every person has exactly one first order. Compared per person, because matching totals can hide one person with none and another with two.
+- `marts_payments_match_items_plus_freight` (warn): per-order payments against item price plus freight, warning when more than 1% of orders differ by over 1.00 (0.25% today, D60).
 - `marts_golden_numbers`: the headline figures worked out from RAW before the marts existed (revenue 13,494,400.74, 6,534 late of 96,470, 96,096 people, 2,997 with several orders, 1,813 who came back after delivery, and others). A changed definition fails the build until the number is deliberately re-pinned.
 
 Unit tests (`_int__unit_tests.yml`, `_marts__unit_tests.yml`) give made-up inputs a known answer, to prove the rules the data tests cannot: the first-order tie-break (D13), the latest review and its tie-break (D14), the payment tie-break (D43), lateness at date grain and orders without children (D18, D19, D21), and the repeat definition (D46).

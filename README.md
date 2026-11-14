@@ -30,7 +30,7 @@ Copy-Item profiles.yml.example profiles.yml            # once; git-ignored, hold
 ..\.venv\Scripts\dbt.exe build --select staging intermediate marts   # builds 8 + 4 views and 6 tables, runs every test
 ```
 
-Expected: `PASS=172 WARN=1 ERROR=0` (173 checks: 6 unit tests, the data tests and the singular tests). The one warning is
+Expected: `PASS=173 WARN=1 ERROR=0` (174 checks: 6 unit tests, the data tests and the singular tests). The one warning is
 deliberate: 13 products belong to 2 categories with no English translation (decision D22), and it is a `warn` test so it stays
 visible without failing the build.
 
@@ -55,4 +55,14 @@ After `dbt build` has created the marts (see above), from the repo root in Power
 
 `sql/analytics_queries.sql` uses fully qualified names throughout, so each statement also runs on its own in Snowsight.
 The figures and what they mean are recorded in [`docs/analytics_results.md`](docs/analytics_results.md).
+
+## The analysis and recommendation
+
+[`analysis_answers.md`](analysis_answers.md) holds the two insights, the recommended campaign with its low, base and high
+impact, the caveats, the top three production checks and the client memo. Its numbers come from the insight queries:
+
+```powershell
+.\.venv\Scripts\python.exe ingest\run_sql.py sql\insight_queries.sql   # review score by lateness, repeat rates, campaign sizing
+.\.venv\Scripts\python.exe ingest\run_sql.py sql\insight_checks.sql    # recomputes them from staging; every ok must be True
+```
 
