@@ -1,0 +1,10 @@
+# For the optional explorer app in this folder. Install on top of the pipeline's requirements.txt, in the same virtual environment:
+#   .\.venv\Scripts\python.exe -m pip install -r app\requirements.txt
+# Streamlit 1.57 or newer is needed for the native components the app uses.
+streamlit==1.67.0
+# Streamlit draws charts and tables through pyarrow. Pinned to 21.0.0 because a newer build (26.x) was blocked by this Windows
+# machine's Application Control policy ("DLL load failed while importing lib"). On a machine without that policy any pyarrow
+# that Streamlit accepts works; if you see that error, try an older release.
+pyarrow==21.0.0
+# The same pinned connector as the pipeline, used when the app reads Snowflake live.
+snowflake-connector-python==5.2.0
