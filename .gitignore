@@ -4,7 +4,7 @@ profiles.yml
 *.p8
 *.pem
 *.key
-.streamlit/secrets.toml
+**/.streamlit/secrets.toml
 
 # --- Python ---------------------------------------------------------------
 .venv/
