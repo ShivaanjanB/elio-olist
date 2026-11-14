@@ -21,6 +21,20 @@ typed as (
 
     from source
 
+),
+
+deduplicated as (
+
+    -- One row per key. If a file were ever loaded twice, the newest load wins, and a tie is broken by file and row
+    -- number, so the choice never depends on the order Snowflake reads the rows. No key repeats today (the
+    -- raw_keys_are_unique test reports it if one does), so this removes nothing.
+    select *
+    from typed
+    qualify row_number() over (
+        partition by review_id, order_id
+        order by _loaded_at desc, _source_file desc, _source_row desc
+    ) = 1
+
 )
 
-select * from typed
+select * from deduplicated
