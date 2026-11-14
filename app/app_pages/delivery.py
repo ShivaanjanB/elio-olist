@@ -161,11 +161,11 @@ with detail_col:
         row = states[states["state"] == chosen[0]].iloc[0]
         gap_row = by_state[by_state["state"] == chosen[0]]
         st.subheader(f"State {row['state']}")
-        first, second = st.columns(2)
-        first.metric("Late deliveries", f"{row.late_pct:.1f}%")
-        second.metric("Days to deliver", f"{row.avg_days_to_deliver:.1f}")
-        first.metric("Review score", f"{row.avg_review_score:.2f}")
-        second.metric("Freight ratio", f"{row.freight_ratio:.0%}")
+        # One column of figures: side by side, each one was too narrow and its number was cut off.
+        st.metric("Late deliveries", f"{row.late_pct:.1f}%")
+        st.metric("Days to deliver", f"{row.avg_days_to_deliver:.1f}")
+        st.metric("Review score", f"{row.avg_review_score:.2f}")
+        st.metric("Freight ratio", f"{row.freight_ratio:.0%}")
         st.caption(f"{int(row.delivered_orders):,} delivered orders of {int(row.orders):,}. Revenue R${row.revenue:,.0f}.")
         if not gap_row.empty:
             g = gap_row.iloc[0]
