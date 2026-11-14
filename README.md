@@ -118,9 +118,35 @@ the account that was already set up). Every command succeeded, `dbt build` took 
 | Marts | `MARTS` | Tables | The star schema: `fct_orders`, `fct_order_items`, `dim_customer`, `dim_product`, `dim_seller`, `dim_date`. Analysts hit these, so the join cost is paid once |
 
 Snowflake does not enforce keys, so every key is proved with a dbt test, and every mart has an enforced contract (names and types
-declared, and dbt refuses to build if they differ). 62 decisions, each with the alternatives, the reason and the evidence, are in
+declared, and dbt refuses to build if they differ). 70 decisions, each with the alternatives, the reason and the evidence, are in
 [`docs/decision_log.md`](docs/decision_log.md). The entity-relationship diagram, normalisation argument and star schema are in
 [`docs/data_model.md`](docs/data_model.md).
+
+## Explore the results (optional app)
+
+A small Streamlit app in [`app/`](app/) lets you click through the three findings instead of reading them: late deliveries and
+review scores, how late first orders affect coming back, and a calculator for the voucher test (what it could earn, and whether a
+test of a given length could see it). It needs no credentials: it reads a saved snapshot of the mart results
+(`app/snapshot/snapshot.json`, about 40 KB of aggregates with no customer or order identifiers).
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r app\requirements.txt
+cd app
+..\.venv\Scripts\streamlit.exe run streamlit_app.py
+```
+
+It opens at `http://127.0.0.1:8501` and listens on this machine only. Run it from the `app` folder so it finds `.streamlit\config.toml`.
+
+- **Live data.** With the Snowflake variables loaded (`. .\scripts\load_env.ps1`) the app reads the marts directly and refreshes
+  hourly. If Snowflake cannot be reached it falls back to the snapshot and says so in the sidebar. Set `OLIST_APP_SOURCE=snapshot`
+  to force the snapshot.
+- **Refresh the snapshot** after the marts change: `cd app; ..\.venv\Scripts\python.exe make_snapshot.py`.
+- **Tests.** `cd app; ..\.venv\Scripts\python.exe -m unittest discover -s tests` runs 30 checks: the calculator reproduces the
+  scenario table in `analysis_answers.md`, every page loads and every widget works at its limits, and the snapshot is the one the
+  write-up quotes. They need no network.
+- **Safe to run.** Every SQL statement is a fixed string in `app/olist_app/queries.py` (widgets never reach a query), nothing is
+  rendered as raw HTML, and error text is never shown on the page. For live data prefer a role that can only `SELECT` from
+  `ELIO_OLIST.MARTS`; the pipeline's `ELIO_TRANSFORMER` can do much more than the app needs.
 
 ## Repo layout
 
@@ -128,6 +154,7 @@ declared, and dbt refuses to build if they differ). 62 decisions, each with the 
 |---|---|
 | `ingest/` | Account setup SQL, file format, stage, raw tables, load and reconcile scripts, and the load notes. See [`ingest/README.md`](ingest/README.md) |
 | `scripts/` | `new_keypair.ps1`, `load_env.ps1` and `test_connection.py` |
+| `app/` | The optional Streamlit explorer: three pages (`app_pages/`), the voucher calculator (`olist_app/calculator.py`), fixed SQL, a saved snapshot of the results and tests |
 | `dbt_project/` | The dbt project. `models/staging`, `models/intermediate`, `models/marts` (SQL, descriptions, tests and contracts), `macros/`, `tests/` (generic and singular), `profiles.yml.example`, `packages.yml` |
 | `docs/data_model.md` | ERD, normalisation reasoning, keys, types, the star schema and the metric definitions |
 | `docs/decision_log.md` | Every design decision |
@@ -161,7 +188,7 @@ What I would do next, in order:
 2. **Dev and production separation:** separate databases or schemas with their own roles and warehouses.
 3. **Incremental `fct_orders`** with a merge strategy and a lookback window, because orders change status after they are loaded, so an increment keyed on purchase date would be wrong. Add the freshness and row-volume checks when loading is scheduled.
 4. **Run the holdout test** described in `analysis_answers.md`, and size the delivery-promise fallback.
-5. **A review-comment classifier** (Snowflake Cortex) to tag complaints as delivery, product or wrong item, and a small Streamlit explorer over the marts.
+5. **A review-comment classifier** (Snowflake Cortex) to tag complaints as delivery, product or wrong item.
 
 ## Working method
 
