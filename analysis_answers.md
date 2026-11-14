@@ -35,6 +35,10 @@ comes from a broken promise, not from slowness itself. The 914 slowest orders (o
 each of the 14 states with at least 100 late reviewed orders, late orders score 1.6 to 2.3 stars lower than on-time ones [I1c], and
 with the state mix held fixed the gap is 1.92 stars (4.29 against 2.37) [I1d].
 
+**Why a stakeholder should care.** A broken delivery promise is the one driver of bad reviews that operations can control, and
+reviews shape what the next buyer sees on the marketplace. It also shows the promise matters more than the speed: arriving
+early earns nothing extra, and arriving late costs a star even by a day or two.
+
 **Why not RFM.** 93,099 of 96,096 people (96.88%) have exactly one order [I3c], so the frequency part of RFM has almost no
 spread and the model would collapse to recency and spend. The question here is how one experience relates to a second purchase, so
 the method compares groups defined by that experience.
@@ -60,6 +64,10 @@ the rate within 56, 90 and 180 days by the first-order experience (decisions D46
 difference in the 180-day rate (1.21% against 1.81% for on-time) has 95% intervals that do not overlap [Q5], and it appears inside
 each delivery quarter from 2017-Q2 to 2018-Q2 [Q5b], so it is not an artefact of when people joined. The larger fact is the
 baseline: even people whose first order went fine return only 1.84% of the time within six months.
+
+**Why a stakeholder should care.** Revenue is customers times orders per customer times order value, and almost all the
+weakness is in orders per customer: only 1.8% of first-time buyers return within six months. A group that returns even less
+after a bad experience is a place to test a fix.
 
 **This is an association, not proof of cause.** Late orders are concentrated in states whose customers may differ in other ways, and
 a bad review could reflect a bad product as much as a bad delivery. Only a randomised test can say whether fixing the experience
@@ -140,19 +148,15 @@ Mapped to the data-quality dimensions they protect, with what exists today.
 ## B4. Client memo
 
 <!-- memo:start -->
-**To: CFO. Subject: A voucher test for repeat purchase**
+**To: CFO. Subject: What we built, what it found, and one test to run**
 
-Almost nobody returns: 96.9% of customers buy once, and only 1.8% reorder within six months.
+What we built: the Olist order files are loaded into Snowflake, cleaned and checked in dbt, and modelled into tables that answer business questions directly. Every figure below was recomputed a second way.
 
-Late delivery damages reviews. Orders arriving after the promised date average 2.27 stars against 4.29, and 62% get one or two stars. Even one to three days late costs about a star, in every large state.
+What it found: almost nobody returns. 96.9% of customers buy once, and 1.8% reorder within six months. Late delivery damages reviews: orders arriving after the promised date average 2.27 stars against 4.29, and their customers return less (1.4% against 1.8%). That is association, not proof of cause.
 
-First orders that went badly also return less: 1.4% within six months against 1.8%. That is association, not proof of cause.
+Next step: send the roughly 11,900 customers a year whose first order was late or rated one or two stars an apology and free shipping up to R$15, holding out half at random. If it adds 0.25 to 1.0 points of repeat orders, that is R$3.7k to R$14.8k of item revenue a year against R$1.5k to R$2.7k of vouchers. A year of enrolment detects only about half a point.
 
-Recommendation: offer customers whose first order was late or rated one or two stars (about 11,900 a year) an apology and free shipping up to R$15, valid 60 days. Hold out half at random; compare orders within eight weeks.
-
-Size: if the voucher adds 0.25 to 1.0 points of repeat orders, that is 30 to 119 orders and R$3.7k to R$14.8k of item revenue a year, against R$1.5k to R$2.7k of vouchers. A year of enrolment detects only about half a point.
-
-Ask: approve the test and share your margin; the voucher pays back only above 18% to 40%. If it fails, reset delivery promises in AL, MA and SE.
+Please approve the test and share your margin: the voucher pays back only above 18% to 40%. If it fails, we reset delivery promises in AL, MA and SE.
 <!-- memo:end -->
 
 ## Where each number comes from
