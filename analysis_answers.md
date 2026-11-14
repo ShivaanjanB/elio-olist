@@ -158,7 +158,7 @@ Mapped to the data-quality dimensions they protect, with what exists today.
 
 What we built: the Olist order files are loaded into Snowflake, cleaned and checked in dbt, and modelled into tables that answer business questions directly. Every figure below was recomputed a second way.
 
-What it found: almost nobody returns. 96.9% of customers buy once, and 1.8% reorder within six months. Late delivery damages reviews: orders arriving after the promised date average 2.27 stars against 4.29, and their customers return less (1.4% against 1.8%). That is association, not proof of cause.
+What it found: almost nobody returns. 96.9% of customers buy once, and 1.8% reorder within six months. Late delivery damages reviews: orders arriving after the promised date average 2.27 stars against 4.29, and customers whose first order was late return less (1.2% against 1.8% for on-time orders). That is association, not proof of cause.
 
 Next step: send the roughly 11,900 customers a year whose first order was late or rated one or two stars an apology and free shipping up to R$15, holding out half at random. If it adds 0.25 to 1.0 points of repeat orders, that is R$3.7k to R$14.8k of item revenue a year against R$1.5k to R$2.7k of vouchers. A year of enrolment detects only about half a point.
 
