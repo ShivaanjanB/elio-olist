@@ -86,7 +86,7 @@ cd dbt_project
 cd ..
 ```
 
-Expected: `PASS=173 WARN=1 ERROR=0` (174 checks: 6 unit tests, data tests and singular tests). The one warning is deliberate: 13
+Expected: `PASS=176 WARN=1 ERROR=0` (177 checks: 8 unit tests, data tests and singular tests). The one warning is deliberate: 13
 products belong to 2 categories with no English translation (decision D22), and it is a `warn` test so it stays visible without
 failing the build. Always pass `--select`; `build` runs models and tests together, so a model that builds but fails its tests is
 never treated as done.
@@ -106,19 +106,19 @@ Every statement uses fully qualified names, so any of them also runs on its own 
 
 **Checked from a fresh clone.** The steps above were run from a new clone with a new virtual environment (steps 3 to 5, against
 the account that was already set up). Every command succeeded, `dbt build` took about 35 seconds and gave
-`PASS=173 WARN=1 ERROR=0`, and every `ok` in the two cross-check files was `True`.
+`PASS=173 WARN=1 ERROR=0` (176 once the staging de-duplication of D71 was added), and every `ok` in the two cross-check files was `True`.
 
 ## How the pipeline is built
 
 | Layer | Schema | Materialised as | Why |
 |---|---|---|---|
 | Raw | `RAW` | Tables, filled by `COPY INTO` | The files exactly as received (all `VARCHAR`), plus the source file, row number and load time of every row. Never edited |
-| Staging | `STAGING` | Views | One model per raw table: typed, renamed and normalised to third normal form. Cheap, always current, and a failed test points at one source |
+| Staging | `STAGING` | Views | One model per raw table: typed, renamed, de-duplicated on its key (newest load wins) and normalised to third normal form. Cheap, always current, and a failed test points at one source |
 | Intermediate | `INTERMEDIATE` | Views | Rolls each child table up to one row per order, the fix for fan-out, and ranks each person's orders. Views stay queryable while debugging |
 | Marts | `MARTS` | Tables | The star schema: `fct_orders`, `fct_order_items`, `dim_customer`, `dim_product`, `dim_seller`, `dim_date`. Analysts hit these, so the join cost is paid once |
 
 Snowflake does not enforce keys, so every key is proved with a dbt test, and every mart has an enforced contract (names and types
-declared, and dbt refuses to build if they differ). 70 decisions, each with the alternatives, the reason and the evidence, are in
+declared, and dbt refuses to build if they differ). 71 decisions, each with the alternatives, the reason and the evidence, are in
 [`docs/decision_log.md`](docs/decision_log.md). The entity-relationship diagram, normalisation argument and star schema are in
 [`docs/data_model.md`](docs/data_model.md).
 

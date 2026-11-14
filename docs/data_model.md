@@ -362,11 +362,11 @@ Defined once here and implemented once in the marts, so every query uses the sam
 
 ```
 dbt_project/models/
-  staging/olist/        _olist__sources.yml, _olist__models.yml, stg_olist__*.sql      (8 views)
+  staging/olist/        _olist__sources.yml, _olist__models.yml, _olist__unit_tests.yml, stg_olist__*.sql  (8 views)
   intermediate/         _int__models.yml, _int__unit_tests.yml, int_*.sql              (4 views)
   marts/                _marts__models.yml, _marts__unit_tests.yml, dim_*.sql, fct_*.sql (6 tables)
 dbt_project/macros/     generate_schema_name, olist_types, generate_surrogate_key
-dbt_project/tests/      generic/unique_combination_of_columns, staging_row_counts_match_raw,
+dbt_project/tests/      generic/unique_combination_of_columns, staging_row_counts_match_raw, raw_keys_are_unique,
                         marts_row_counts_match_staging, marts_totals_reconcile,
                         marts_one_first_order_per_person, marts_golden_numbers
 ```
