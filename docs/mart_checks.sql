@@ -1,10 +1,4 @@
--- Sanity checks on the built star schema (ELIO_OLIST.MARTS). Run after `dbt build --select intermediate marts`:
---   . .\scripts\load_env.ps1
---   .\.venv\Scripts\python.exe ingest\run_sql.py docs\mart_checks.sql
---
--- Each check says what it expects, and the expected figures come from the earlier checks in
--- relationship_checks.sql and type_and_design_checks.sql (decision numbers in brackets). The dbt tests enforce the
--- same ideas on every build; this file is for looking at the numbers with your own eyes.
+-- Sanity checks on the built star schema (ELIO_OLIST.MARTS).
 
 USE DATABASE ELIO_OLIST;
 
@@ -126,9 +120,7 @@ SELECT
     COUNT_IF(is_late)                                          AS late_units
 FROM MARTS.FCT_ORDER_ITEMS;
 
--- 15. Repeat after delivery by whether the first delivery was late (the Q5 shape). Expect on time 1.99%, late 1.26%;
---     the naive flag would say 3.13% and 2.54%. Early cohorts return more often than late ones (3.5% down to 0.5%
---     by delivery quarter), which is a follow-up-window effect to control for, not a finding.
+-- 15. Repeat after delivery by whether the first delivery was late (the Q5 shape).
 SELECT o.is_late, COUNT(*) AS people,
        COUNT_IF(d.repeat_after_first_delivery) AS returned,
        ROUND(100 * COUNT_IF(d.repeat_after_first_delivery) / COUNT(*), 2) AS returned_pct

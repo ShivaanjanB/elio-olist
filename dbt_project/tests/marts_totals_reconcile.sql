@@ -1,11 +1,5 @@
 {#
-  Money and counts in the marts must add up to the staging tables they came from. This is the test that catches fan-out:
-  a join that repeats rows leaves the row counts of a dimension fine but inflates a SUM, which is exactly what the
-  careless join in docs/relationship_checks.sql did (+26.9% on payments, +4.5% on prices). Returns one row per measure
-  that does not match; the test passes when nothing is returned (D45).
-
-  Debugging a failure: the two sides are shown, so the gap says whether rows were repeated (mart too high) or lost
-  (mart too low).
+  Money and counts in the marts must add up to the staging tables they came from.
 #}
 with checks as (
 

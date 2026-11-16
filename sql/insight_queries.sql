@@ -1,19 +1,11 @@
--- Insight and campaign queries (brief B1 to B4): every number in analysis_answers.md comes from one of these.
---
---   . .\scripts\load_env.ps1
---   .\.venv\Scripts\python.exe ingest\run_sql.py sql\insight_queries.sql
---
--- Same conventions as sql/analytics_queries.sql: fully qualified names, definitions from docs/data_model.md section 8,
--- late = delivered date after the estimated date compared as dates (D18), came back = a later non-canceled order placed on
--- or after the first delivery day (D46), repeat windows only for people with enough follow-up (D53).
--- Choices made here are D56 to D60 in docs/decision_log.md. sql/insight_checks.sql recomputes the figures from staging.
+-- Insight and campaign queries (brief B1 to B4): every number in analysis_answers.md comes from one of these. .
+-- .\scripts\load_env.ps1 .\.venv\Scripts\python.exe ingest\run_sql.py sql\insight_queries.sql Same conventions as
+-- sql/analytics_queries.sql: fully qualified names, definitions from docs/data_model.md section 8, late = delivered
+-- date after the estimated date compared as dates (D18), came back = a later non-canceled order placed on or after
+-- the first delivery day (D46), repeat windows only for people with enough follow-up (D53).
 
 
--- =====================================================================================================================
 -- I1a. Insight 1: review score by how late the order arrived (delivered orders that have a review).
---      Grain: one row per lateness band. days_vs_estimate: negative is early, positive is late.
---      Expect: about 4.2 to 4.3 stars when on time, then 3.29 at 1-3 days late, 2.10 at 4-7 and below 1.8 after a week.
--- =====================================================================================================================
 SELECT
     CASE
         WHEN fo.days_vs_estimate <= -8 THEN 1
@@ -57,9 +49,7 @@ GROUP BY IFF(fo.is_late, 'late', 'on time or early')
 ORDER BY arrival;
 
 
--- I1c. Is that gap just geography? Late and on-time review averages inside each state with at least 100 late reviewed
---      orders (D56). Late orders cluster in far-away states, so if those customers simply rated lower, the gap would
---      disappear within a state. It does not: the gap is 1.6 to 2.3 stars in every one of these states.
+-- I1c. Is that gap just geography?
 SELECT
     fo.customer_state,
     COUNT_IF(fo.is_late)                                                         AS late_reviewed,
@@ -100,14 +90,7 @@ SELECT
 FROM by_state;
 
 
--- =====================================================================================================================
 -- I2. Insight 2: repeat purchase against first-order experience, at 56, 90 and 180 days.
---     Cohort (D53): first order delivered, with 180 full days of follow-up after the delivery (63,874 people), so every
---     window is measured on the same people. Segments are the ones a campaign could target: first order late, first
---     order on time but reviewed 1-2 stars, and everyone else. The campaign segment is the first two together (D57).
---     Expect: the segment 0.65% / 0.89% / 1.38% against everyone else 0.91% / 1.20% / 1.84%.
---     This is an association, not proof that lateness or a bad review causes it (see analysis_answers.md).
--- =====================================================================================================================
 WITH params AS (
     SELECT MAX(purchase_date) AS data_end
     FROM ELIO_OLIST.MARTS.FCT_ORDERS
@@ -172,22 +155,7 @@ GROUP BY sort_key, grp
 ORDER BY sort_key, grp;
 
 
--- =====================================================================================================================
 -- I3. The campaign: who it reaches, what it could earn and cost, and how big a test must be (D57 to D60).
---     Segment: people whose first order was delivered late or was reviewed 1-2 stars.
---     Everything marked (data) is measured; the three uplifts are ASSUMPTIONS, because nothing in this dataset says what a
---     voucher does. They are the whole reason for the test.
---       segment_per_year   first deliveries from 2017-09-01 to 2018-08-31, the last 12 reliable months (data)
---       baseline_56d       the segment's repeat rate within 8 weeks of delivery (data)
---       order value        average item price and freight on a person's later revenue orders (data)
---       uplift             extra repeat orders per segment member within 8 weeks: low 0.25 points (the gap to everyone
---                          else, i.e. an apology that only restores normal behaviour), base 0.5, high 1.0 (assumed)
---       voucher            free shipping on a redeemed order, capped at 15 (below the median freight of 17.19) to limit what
---                          a single redemption can cost (D58). Everyone in the segment who orders within 60 days is
---                          assumed to redeem it, baseline buyers too, which is the leakage
---     Revenue here is item revenue, not profit: margin is not in the data (see analysis_answers.md).
---     n_per_arm_needed: people per group to see the uplift with 80% power at the 5% level (two-sided).
--- =====================================================================================================================
 WITH params AS (
     SELECT
         DATE '2017-09-01' AS flow_start,

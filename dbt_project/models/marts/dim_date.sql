@@ -1,7 +1,5 @@
 {#
   One row per calendar day from 2016-01-01 to 2018-12-31 (D25), generated here so it needs no package (D40).
-  The row count is worked out from the two dates, so changing a date changes the table and nothing else.
-  The date itself is the key: it is already unique, stable and readable (D25).
 #}
 {%- set start_date = '2016-01-01' -%}
 {%- set end_date = '2018-12-31' -%}

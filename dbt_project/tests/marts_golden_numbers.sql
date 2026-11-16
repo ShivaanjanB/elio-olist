@@ -1,12 +1,6 @@
 {#
   Golden numbers: the headline figures of this dataset, worked out independently from the RAW files before the marts
-  existed (docs/relationship_checks.sql and docs/type_and_design_checks.sql) and pinned here. If a model change moves
-  one of them, the build fails and someone has to decide whether the change or the number is wrong (D45).
-
-  This is a regression guard for a STATIC dataset: the Olist export never changes. On a live source these values would
-  move every day and this test would not belong.
-
-  Returns one row per figure that differs; the test passes when nothing is returned.
+  existed (docs/relationship_checks.sql and docs/type_and_design_checks.sql) and pinned here.
 #}
 with actual as (
 

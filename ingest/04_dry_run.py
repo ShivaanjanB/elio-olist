@@ -1,20 +1,4 @@
-"""Dry run: check every staged file BEFORE loading it (ingest step 2.4). Loads nothing.
-
-Why this exists: the real load (ingest/04_load.sql) uses the SELECT form of COPY INTO, to record
-each row's file name and row number. In that form Snowflake IGNORES ERROR_ON_COLUMN_COUNT_MISMATCH,
-so a row with the wrong number of fields would load silently. A plain COPY with
-VALIDATION_MODE = RETURN_ERRORS does check it, and loads nothing.
-
-A dry run cannot use a column list or a SELECT, so for each file this script:
-  1. creates a TEMPORARY scratch table with exactly the CSV's columns (all VARCHAR), built from
-     the CSV header line; it disappears when the session ends
-  2. runs  COPY INTO <scratch> FROM @stage/<file> ... VALIDATION_MODE = RETURN_ERRORS
-  3. counts the error rows Snowflake returns (0 = nothing would fail)
-Exits with an error if any file would produce an error row.
-
-Run from the repo root, after `. .\\scripts\\load_env.ps1`:
-    .\\.venv\\Scripts\\python.exe ingest\\04_dry_run.py
-"""
+"""Dry run: check every staged file BEFORE loading it (ingest step 2.4)."""
 import csv
 import os
 import sys

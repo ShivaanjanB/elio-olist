@@ -21,8 +21,6 @@ UNION ALL SELECT 'category_translation', COUNT_IF(product_category_name_english 
 ORDER BY 1;
 
 -- 2. Blanks: a blank field should load as NULL (EMPTY_FIELD_AS_NULL), not as an empty string.
---    Lists every column that has any NULLs or any empty strings. "empty_text" > 0 would mean
---    some blanks came through as '' instead of NULL.
 SELECT * FROM (
   SELECT 'ORDERS' AS tbl, 'order_id' AS col, COUNT_IF(order_id IS NULL) AS nulls, COUNT_IF(order_id = '') AS empty_text FROM ELIO_OLIST.RAW.ORDERS
   UNION ALL
@@ -129,10 +127,9 @@ UNION ALL
 SELECT 'sellers', COUNT(*), COUNT_IF(LENGTH(seller_zip_code_prefix) <> 5), COUNT_IF(seller_zip_code_prefix LIKE '0%')
 FROM ELIO_OLIST.RAW.SELLERS;
 
--- 4. Portuguese accents: how many values contain non-ASCII characters (multi-byte = LENGTH differs
---    from OCTET_LENGTH), and how many show the telltale garbling of a wrong encoding (a capital A with a
---    tilde, CHR(195), followed by a symbol: what e-acute, a-tilde and c-cedilla become when misread).
---    Expect many accented values and 0 garbled ones.
+-- 4. Portuguese accents: how many values contain non-ASCII characters (multi-byte = LENGTH differs from
+-- OCTET_LENGTH), and how many show the telltale garbling of a wrong encoding (a capital A with a tilde, CHR(195),
+-- followed by a symbol: what e-acute, a-tilde and c-cedilla become when misread).
 SELECT 'order_reviews.review_comment_message' AS col,
        COUNT_IF(LENGTH(review_comment_message) <> OCTET_LENGTH(review_comment_message)) AS values_with_accents,
        COUNT_IF(review_comment_message LIKE '%' || CHR(195) || CHR(169) || '%'

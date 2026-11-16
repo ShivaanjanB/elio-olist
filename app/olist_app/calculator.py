@@ -1,12 +1,4 @@
-"""The economics of the voucher test, as plain functions with no Streamlit in them.
-
-These are the same formulas as the campaign sizing in sql/insight_queries.sql (query I3), written so they can be tested
-and so the app can recompute them live when someone moves a slider. app/tests/test_calculator.py checks that they reproduce
-the low, base and high scenarios in analysis_answers.md.
-
-Money is in reais. "Uplift" is the extra share of the segment who place a repeat order within 8 weeks, as a fraction
-(0.005 is half a percentage point).
-"""
+"""The economics of the voucher test, as plain functions with no Streamlit in them."""
 from __future__ import annotations
 
 import math

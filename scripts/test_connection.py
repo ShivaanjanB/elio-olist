@@ -1,12 +1,4 @@
-"""Connection test: sign in as the pipeline service user with its key pair and report who we are.
-
-Reads the SNOWFLAKE_* settings from environment variables (load them first with
-`. .\\scripts\\load_env.ps1`). Prints no secrets: the private key is read by the
-connector from the file path and never printed.
-
-Run from the repo root:
-    .\\.venv\\Scripts\\python.exe scripts\\test_connection.py
-"""
+"""Connection test: sign in as the pipeline service user with its key pair and report who we are."""
 import os
 import sys
 

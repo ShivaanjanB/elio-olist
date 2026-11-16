@@ -1,12 +1,4 @@
-"""Run a .sql file (or one inline statement) in Snowflake as the pipeline service user.
-
-Signs in with the key pair, exactly like scripts/test_connection.py, then sends every statement
-in the file in order. It stops at the first error. It prints no secrets.
-
-Usage, from the repo root, after loading your settings with `. .\\scripts\\load_env.ps1`:
-    .\\.venv\\Scripts\\python.exe ingest\\run_sql.py ingest\\01_file_format.sql
-    .\\.venv\\Scripts\\python.exe ingest\\run_sql.py --sql "SHOW FILE FORMATS IN SCHEMA ELIO_OLIST.RAW"
-"""
+"""Run a .sql file (or one inline statement) in Snowflake as the pipeline service user."""
 import os
 import sys
 import warnings

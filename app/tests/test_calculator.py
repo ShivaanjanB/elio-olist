@@ -1,8 +1,4 @@
-"""Tests for the voucher economics. Run from the app folder:  ..\\.venv\\Scripts\\python.exe -m unittest discover -s tests
-
-The key test rebuilds the low, base and high scenarios from the saved snapshot's inputs and compares them with the table in
-analysis_answers.md, so the calculator in the app cannot drift from the numbers in the write-up.
-"""
+"""Tests for the voucher economics. Run from the app folder: ..\\.venv\\Scripts\\python.exe -m unittest discover -s tests The key test rebuilds the low, base and high scenarios from the saved snapshot's inputs and compares them with the table in analysis_answers.md, so the calculator in the app cannot drift from the numbers in the write-up."""
 import json
 import sys
 import unittest

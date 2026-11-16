@@ -185,9 +185,7 @@ SELECT o.order_status, COUNT(DISTINCT o.order_id) AS orders_with_items, COUNT(*)
        ROUND(SUM(TRY_TO_NUMBER(i.price, 12, 2)), 2) AS price_total
 FROM ELIO_OLIST.RAW.ORDERS o JOIN ELIO_OLIST.RAW.ORDER_ITEMS i ON i.order_id = o.order_id
 GROUP BY 1 ORDER BY 4 DESC;
--- 18. Phase 5 design questions, answered before building the intermediate models and marts.
--- 18a. Orders by status for people's FIRST order: how many people's first order was canceled or unavailable?
---      (decides whether "first order" should skip non-revenue orders)
+-- 18. Phase 5 design questions, answered before building the intermediate models and marts. 18a.
 WITH o AS (SELECT c.customer_unique_id AS uid, o.order_status AS status, o.order_purchase_timestamp AS ts, o.order_id
            FROM ELIO_OLIST.RAW.ORDERS o JOIN ELIO_OLIST.RAW.CUSTOMERS c ON c.customer_id = o.customer_id),
 ranked AS (SELECT uid, status, ROW_NUMBER() OVER (PARTITION BY uid ORDER BY ts, order_id) AS rn FROM o)

@@ -1,13 +1,4 @@
-"""Write app/snapshot/snapshot.json from Snowflake: the aggregate results the app draws, so it can run without credentials.
-
-From the repo root, after loading the settings (see README):
-    . .\\scripts\\load_env.ps1
-    cd app
-    ..\\.venv\\Scripts\\python.exe make_snapshot.py
-
-The file holds a few hundred numbers (one row per state, band or quarter) and the freight of 3,264 later orders. It holds no
-customer or order identifiers.
-"""
+"""Write app/snapshot/snapshot.json from Snowflake: the aggregate results the app draws, so it can run without credentials."""
 import json
 import sys
 from datetime import date

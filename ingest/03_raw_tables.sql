@@ -1,21 +1,4 @@
--- =============================================================================
--- ingest/03_raw_tables.sql
--- The eight RAW tables: one per CSV file. Run as ELIO_TRANSFORMER. Safe to re-run.
---
--- Generated from the header line of each CSV, so the columns match the file in NAME and ORDER
--- (COPY INTO maps CSV fields to columns by position, so the order matters).
---
---   * Every source column is VARCHAR (plain text): RAW is as received, no cleaning and no types.
---     Typing happens in dbt staging, where it is tested. Zip prefixes such as 01151 keep their zero.
---   * Source names are kept exactly, including the misspelt product_name_lenght.
---   * Three label columns are added at the end of each table:
---       _source_file  <- METADATA$FILENAME         (which file the row came from)
---       _source_row   <- METADATA$FILE_ROW_NUMBER  (which record in that file)
---       _loaded_at    <- column default            (when the row was loaded)
---   * No keys or constraints: RAW accepts duplicates and blanks as they arrive.
---
--- CREATE TABLE IF NOT EXISTS (never OR REPLACE): tables hold data, and a re-run must not wipe it.
--- =============================================================================
+-- The eight RAW tables: one per CSV file.
 
 USE ROLE ELIO_TRANSFORMER;
 USE WAREHOUSE ELIO_WH;

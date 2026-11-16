@@ -1,13 +1,5 @@
 {#
-  One row per UNIT on an order (there is no quantity column: three of a product is three rows). The order-level facts an
-  item needs, its purchase date, whether it counts as revenue and whether its order was late, are read from fct_orders so
-  each is defined once (D48). fct_orders has exactly one row per order, so this join cannot repeat an item row
-  (reconciliation tests prove it).
-
-  Product and seller keys are computed from the natural keys with the same macro the dimensions use (D41).
-
-  revenue is price where the order counts as revenue and 0 where it does not (D47), so a plain SUM(revenue) is already
-  the right revenue. SUM(price) is the unfiltered total, which includes canceled and unavailable orders.
+  One row per UNIT on an order (there is no quantity column: three of a product is three rows).
 #}
 with items as (
 

@@ -1,16 +1,4 @@
-"""Check that each RAW table matches its CSV header (ingest step 2.3). Read-only.
-
-COPY INTO maps CSV fields to table columns BY POSITION, so a table must have the CSV's columns
-in the CSV's order. For every table this compares Snowflake's column list with the header line
-of the matching file in data/raw/, and checks:
-  * source columns: same names, same order, all text (VARCHAR)
-  * then the three label columns: _source_file (text), _source_row (number), _loaded_at (timestamp)
-Row counts are printed for information only (0 before the load).
-
-Run from the repo root, after `. .\\scripts\\load_env.ps1`:
-    .\\.venv\\Scripts\\python.exe ingest\\03_check_raw_tables.py
-Exits with an error if anything does not match.
-"""
+"""Check that each RAW table matches its CSV header (ingest step 2.3)."""
 import csv
 import os
 import sys

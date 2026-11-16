@@ -1,7 +1,5 @@
 {#
-  Rolls the item rows up to ORDER grain: one row per order that has items. An order can have up to 21 items, so
-  joining items to orders directly would repeat the order's row (D15, D29). Orders with no items are absent here and
-  become 0 in fct_orders.
+  Rolls the item rows up to ORDER grain: one row per order that has items.
 #}
 select
     order_id,

@@ -1,28 +1,7 @@
 -- Analytics queries (brief A5): five questions answered from the star schema in ELIO_OLIST.MARTS.
---
--- Run one statement in Snowsight, or all of them:
---   . .\scripts\load_env.ps1
---   .\.venv\Scripts\python.exe ingest\run_sql.py sql\analytics_queries.sql
---
--- Conventions
---   * Every table is fully qualified (database.schema.table), so nothing depends on the session's current schema.
---   * Definitions are the ones in docs/data_model.md section 8 and docs/decision_log.md. The ones that matter here:
---       revenue            item price on orders that are not canceled or unavailable, excluding freight (D16, D17).
---                          Sum the `revenue` columns; summing `price` would include canceled orders (D47).
---       late               delivered date later than the estimated date, compared as dates (D18). NULL when the delivery
---                          is not measurable, so rates divide by orders that were delivered, never by all orders (D19).
---       person             customer_unique_id, never customer_id (D12).
---       came back          a later non-canceled order placed on or after the day the first order was delivered (D46).
---   * Choices made for these queries are in docs/decision_log.md D51 to D55. Each query repeats the figure it depends on
---     in a comment, and sql/analytics_checks.sql recomputes every headline from staging by a different route.
 
 
--- =====================================================================================================================
 -- Q1. Top 10 product categories by revenue, with each one's share of total revenue.
---     Grain: one row per category. The share's denominator is ALL revenue, including categories outside the top 10 and
---     the 'unknown' category (610 products with no category), so the shares are of the whole business, not of the top 10.
---     Expect: health_beauty first at 9.31%, the top 10 together about 62% of 13,494,400.74.
--- =====================================================================================================================
 WITH category_revenue AS (
     SELECT
         dp.category_name,
@@ -60,14 +39,7 @@ WHERE revenue_rank <= 10
 ORDER BY revenue_rank;
 
 
--- =====================================================================================================================
--- Q2. Monthly orders, revenue and average order value, with month-on-month change. Partial months trimmed.
---     Grain: one row per purchase month, from 2017-01 to 2018-08 (D51).
---     The data is thin outside that window: 2016 has 329 orders in total and no orders at all in November, and
---     September and October 2018 have 16 and 4 orders. Month-on-month changes there would be noise, not trend.
---     orders = revenue orders that have at least one item, so average order value = revenue / orders, consistent with D47.
---     Expect: 20 months, 2017-11 the peak at 7,421 orders and 1,003,862 revenue, the first month's changes NULL.
--- =====================================================================================================================
+-- Q2. Monthly orders, revenue and average order value, with month-on-month change.
 WITH monthly AS (
     SELECT
         dd.year_month,
@@ -109,16 +81,7 @@ GROUP BY dd.year_month
 ORDER BY dd.year_month;
 
 
--- =====================================================================================================================
 -- Q3a. Anomaly: sellers whose late rate is unusually high (z-score above 2).
---      Grain: one row per flagged seller. A seller's late rate = late orders / delivered orders, counting DISTINCT
---      orders, so an order with three units from one seller counts once (D48).
---      Only sellers with at least 30 measurable orders are scored (D52): of 3,095 sellers, 627 qualify; below that a
---      single late order moves the rate by 3 points or more.
---      z_across_sellers = how many standard deviations the seller sits above the average seller (the brief's measure).
---      z_vs_platform_rate = the same gap against the platform's 6.77%, scaled by the seller's own volume. It is a
---      second opinion, because a seller with few orders can look extreme by chance: trust the rows where both are high.
--- =====================================================================================================================
 WITH params AS (
     SELECT
         30 AS min_orders,
@@ -218,11 +181,7 @@ SELECT
 FROM scored;
 
 
--- =====================================================================================================================
 -- Q3b. Anomaly: orders slower than the 99th percentile of delivery time (listing, slowest first).
---      Grain: one row per order. p99 is taken over delivered orders with a delivery date (96,470), in calendar days (D44).
---      Expect: p99 = 46 days, 914 orders above it, the slowest 210 days.
--- =====================================================================================================================
 WITH cut AS (
     SELECT PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY days_to_deliver) AS p99_days
     FROM ELIO_OLIST.MARTS.FCT_ORDERS
@@ -264,16 +223,7 @@ GROUP BY IFF(fo.days_to_deliver > cut.p99_days, 'above p99', 'p99 or faster')
 ORDER BY delivery_group;
 
 
--- =====================================================================================================================
 -- Q4. Breakdown by customer state: delivery days, late %, average review and freight ratio.
---     Grain: one row per state (27), the state on the order's own address.
---       delivered_orders   orders with status delivered and a delivery date; the base for days and late % (D19).
---       avg_days_to_deliver, late_pct   over delivered_orders only.
---       avg_review_score   over orders that have a review (the latest one per order, D14).
---       freight_ratio      freight divided by item price, over revenue orders: how much delivery adds to the basket.
---     enough_data marks states with at least 100 delivered orders; the smallest, such as RR with 41, can swing a lot.
---     Sorted worst late rate first.
--- =====================================================================================================================
 SELECT
     fo.customer_state,
     COUNT(*)                                                                        AS orders,
@@ -290,17 +240,7 @@ GROUP BY fo.customer_state
 ORDER BY late_pct DESC, fo.customer_state;
 
 
--- =====================================================================================================================
 -- Q5. The stakeholder question: how does the repeat rate depend on the first order's delivery experience?
---     Cohort (D46, D53): people whose FIRST order was delivered (with a delivery date), counted only when the data
---     leaves them 180 full days of follow-up after that delivery, so every person has the same chance to come back. That
---     keeps first deliveries up to 2018-04-20: 63,874 people. Without the window, people delivered in 2018 look loyal
---     less often simply because they have had less time (3.5% for early 2017 deliveries, 0.46% for mid 2018).
---     "Came back" = a later non-canceled order placed on or after the delivery day and within 180 days of it.
---     Reading it: repeat_rate_pct is returners / people; the 95% interval is the usual normal approximation.
---     Expect: 1.77% overall (1,129 of 63,874); on time or early 1.81% against late 1.21% (intervals that do not overlap);
---     first-order reviews of 1-2 stars 1.35%, 3 stars 1.72%, 4-5 stars 1.85%.
--- =====================================================================================================================
 WITH params AS (
     SELECT 180 AS follow_up_days, MAX(purchase_date) AS data_end
     FROM ELIO_OLIST.MARTS.FCT_ORDERS
@@ -371,9 +311,7 @@ GROUP BY sort_key, cut, grp
 ORDER BY sort_key, grp;
 
 
--- Q5b. Is the on-time versus late gap just a cohort-timing effect? Same cohort and window, split by the quarter of the
---      first delivery. If late first orders do worse inside every quarter, the gap is not explained by when people
---      joined. Quarters with few late people (2016-Q4, 2017-Q1) are noisy: read the people columns.
+-- Q5b. Is the on-time versus late gap just a cohort-timing effect?
 WITH params AS (
     SELECT 180 AS follow_up_days, MAX(purchase_date) AS data_end
     FROM ELIO_OLIST.MARTS.FCT_ORDERS

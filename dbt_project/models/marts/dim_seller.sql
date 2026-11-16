@@ -1,6 +1,5 @@
 {#
   One row per seller (D23). Taken straight from staging: a seller is already one row per seller_id there.
-  The surrogate key is a hash of seller_id (D41), so fct_order_items can compute the same key without a join.
 #}
 with sellers as (
 

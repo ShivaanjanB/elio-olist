@@ -2,12 +2,7 @@
 
 {#
   Reports any RAW table in which a key appears more than once, for example after a file was loaded twice without
-  truncating first. Staging removes such repeats (newest load wins), so the pipeline carries on with the right
-  numbers; this test makes sure the repeat is not silent. Returns one row per table with repeats; passes when
-  nothing is returned. Severity is warn on purpose: the data is still usable, the load is what needs a look.
-
-  Debugging a warning: compare raw_rows with distinct_keys, then look for a second load of the same file in
-  _source_file and _loaded_at on that RAW table. The fix is to truncate the RAW tables and reload (ingest/LOAD_NOTES.md).
+  truncating first.
 #}
 with counts as (
 
