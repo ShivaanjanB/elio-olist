@@ -82,11 +82,12 @@ Copy-Item dbt_project\profiles.yml.example dbt_project\profiles.yml
 cd dbt_project
 ..\.venv\Scripts\dbt.exe deps          # there are no packages (D30), so this only confirms that
 ..\.venv\Scripts\dbt.exe debug         # connection check
-..\.venv\Scripts\dbt.exe build --select staging intermediate marts
+..\.venv\Scripts\dbt.exe build --select staging intermediate marts raw_keys_are_unique
 cd ..
 ```
 
-Expected: `PASS=176 WARN=1 ERROR=0` (177 checks: 8 unit tests, data tests and singular tests). The one warning is deliberate: 13
+Expected: `PASS=176 WARN=1 ERROR=0` (177 checks: 18 models, 8 unit tests, data tests and singular tests). `raw_keys_are_unique` is named
+because it reads only the RAW tables, so no layer selector picks it up; leave it off and the result is `PASS=175 WARN=1`. The one warning is deliberate: 13
 products belong to 2 categories with no English translation (decision D22), and it is a `warn` test so it stays visible without
 failing the build. Always pass `--select`; `build` runs models and tests together, so a model that builds but fails its tests is
 never treated as done.
