@@ -82,11 +82,12 @@ Copy-Item dbt_project\profiles.yml.example dbt_project\profiles.yml
 cd dbt_project
 ..\.venv\Scripts\dbt.exe deps          # there are no packages (D30), so this only confirms that
 ..\.venv\Scripts\dbt.exe debug         # connection check
-..\.venv\Scripts\dbt.exe build --select staging intermediate marts
+..\.venv\Scripts\dbt.exe build --select staging intermediate marts raw_keys_are_unique
 cd ..
 ```
 
-Expected: `PASS=176 WARN=1 ERROR=0` (177 checks: 8 unit tests, data tests and singular tests). The one warning is deliberate: 13
+Expected: `PASS=176 WARN=1 ERROR=0` (177 checks: 18 models, 8 unit tests, data tests and singular tests). `raw_keys_are_unique` is named
+because it reads only the RAW tables, so no layer selector picks it up; leave it off and the result is `PASS=175 WARN=1`. The one warning is deliberate: 13
 products belong to 2 categories with no English translation (decision D22), and it is a `warn` test so it stays visible without
 failing the build. Always pass `--select`; `build` runs models and tests together, so a model that builds but fails its tests is
 never treated as done.
@@ -118,9 +119,13 @@ the account that was already set up). Every command succeeded, `dbt build` took 
 | Marts | `MARTS` | Tables | The star schema: `fct_orders`, `fct_order_items`, `dim_customer`, `dim_product`, `dim_seller`, `dim_date`. Analysts hit these, so the join cost is paid once |
 
 Snowflake does not enforce keys, so every key is proved with a dbt test, and every mart has an enforced contract (names and types
-declared, and dbt refuses to build if they differ). 71 decisions, each with the alternatives, the reason and the evidence, are in
+declared, and dbt refuses to build if they differ). 73 decisions, each with the alternatives, the reason and the evidence, are in
 [`docs/decision_log.md`](docs/decision_log.md). The entity-relationship diagram, normalisation argument and star schema are in
 [`docs/data_model.md`](docs/data_model.md).
+
+The business words (revenue, orders, average order value, late delivery rate, average review score, repeat rate) are also defined
+once as a semantic layer in [`_marts__semantic.yml`](dbt_project/models/marts/_marts__semantic.yml) (D73). It changes no table, and
+[`docs/semantic_layer_checks.sql`](docs/semantic_layer_checks.sql) recomputes each metric with plain SQL. The app does not read it yet.
 
 ## Explore the results (optional app)
 
