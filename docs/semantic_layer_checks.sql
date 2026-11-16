@@ -1,10 +1,4 @@
--- Plain-SQL check of the semantic layer (D73). Read-only. Run after `dbt build`:
---   . .\scripts\load_env.ps1
---   .\.venv\Scripts\python.exe ingest\run_sql.py docs\semantic_layer_checks.sql
---
--- Each query recomputes one metric from the marts with ordinary SQL and compares it with the figure the project already
--- reports, so the metric definitions in dbt_project/models/marts/_marts__semantic.yml can be shown to give the same numbers.
--- Every `ok` should be TRUE. (The metrics themselves were also queried through MetricFlow and matched these values.)
+-- Plain-SQL check of the semantic layer (D73).
 
 USE DATABASE ELIO_OLIST;
 

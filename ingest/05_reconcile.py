@@ -1,18 +1,4 @@
-"""Reconcile row counts after the load (ingest step 2.5). Read-only.
-
-For each of the eight tables, FOUR independent numbers must agree:
-  1. records in the CSV file       counted here with Python's csv module (no Snowflake involved).
-                                   It follows the quotes, so a comment with a line break is ONE record.
-  2. records Snowflake reads from the staged file, through the file format
-  3. rows loaded, as COPY recorded them (INFORMATION_SCHEMA.COPY_HISTORY, latest load of that file)
-  4. rows now in the table         COUNT(*)
-
-It also prints COPY's own status and error count for that latest load.
-Exits with an error if any row of the report does not match.
-
-Run from the repo root, after `. .\\scripts\\load_env.ps1`:
-    .\\.venv\\Scripts\\python.exe ingest\\05_reconcile.py
-"""
+"""Reconcile row counts after the load (ingest step 2.5)."""
 import csv
 import os
 import sys

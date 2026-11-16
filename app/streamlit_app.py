@@ -1,10 +1,4 @@
-"""Olist explorer: three pages over the results of the pipeline.
-
-    cd app
-    ..\\.venv\\Scripts\\streamlit.exe run streamlit_app.py
-
-With the Snowflake variables loaded (see README) it reads the marts live; without them it shows a saved snapshot.
-"""
+"""Olist explorer: three pages over the results of the pipeline. cd app ..\\.venv\\Scripts\\streamlit.exe run streamlit_app.py With the Snowflake variables loaded (see README) it reads the marts live; without them it shows a saved snapshot."""
 import streamlit as st
 
 from olist_app import data

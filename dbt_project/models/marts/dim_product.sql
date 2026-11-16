@@ -1,6 +1,6 @@
 {#
-  One row per product. The category shown to analysts is the English name, else the Portuguese one, else 'unknown' (D22):
-  13 products sit in 2 categories the translation table lacks, and 610 products have no category at all.
+  One row per product. The category shown to analysts is the English name, else the Portuguese one, else 'unknown'
+  (D22): 13 products sit in 2 categories the translation table lacks, and 610 products have no category at all.
   volume_cm3 is length x height x width of the package, NULL when any of the three is unknown (2 products).
 #}
 with products as (

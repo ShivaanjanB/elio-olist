@@ -1,10 +1,4 @@
-"""Tests of the Streamlit app itself, run in-process on the saved snapshot (no browser, no Snowflake).
-
-Run from the app folder:  ..\\.venv\\Scripts\\python.exe -m unittest discover -s tests -v
-
-Each test follows one charter from the exploratory session: drive a page the way a reader would, then check the result. Bugs
-found by exploring were turned into the regression tests marked BUG below.
-"""
+"""Tests of the Streamlit app itself, run in-process on the saved snapshot (no browser, no Snowflake)."""
 import json
 import os
 import sys

@@ -1,27 +1,4 @@
--- =============================================================================
--- ingest/04_load.sql
--- Load the eight staged CSVs into the RAW tables. Run as ELIO_TRANSFORMER.
--- Run ingest/04_dry_run.py FIRST: it must report 0 error rows for every file.
---
--- One COPY INTO per table (each file maps to exactly one table), generated from the CSV headers.
---
--- The SELECT form is used so each row records where it came from:
---     $1, $2, ...                 the CSV fields, by position (the table has the same column order)
---     METADATA$FILENAME           -> _source_file
---     METADATA$FILE_ROW_NUMBER    -> _source_row
---     METADATA$START_SCAN_TIME    -> _loaded_at  (Snowflake recommends it over a CURRENT_TIMESTAMP default)
---
--- ON_ERROR = ABORT_STATEMENT (written out although it is the default): the first error stops that
--- COPY and loads NOTHING from the file, so a table is never half-loaded and no bad row is silently
--- dropped. All source columns are text, so a failure here means our reading rules are wrong and
--- must be fixed, not skipped.
---
--- NOTE: in the SELECT form Snowflake ignores ERROR_ON_COLUMN_COUNT_MISMATCH. The dry run is what
--- checks the number of fields per row.
---
--- Snowflake remembers which files it has loaded into a table, so re-running this skips them.
--- To reload on purpose, empty the tables first (see ingest/README.md).
--- =============================================================================
+-- Load the eight staged CSVs into the RAW tables.
 
 USE ROLE ELIO_TRANSFORMER;
 USE WAREHOUSE ELIO_WH;

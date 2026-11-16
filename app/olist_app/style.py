@@ -1,8 +1,4 @@
-"""The colours the charts use for meaning. They match [theme] in app/.streamlit/config.toml.
-
-One colour per idea, everywhere in the app: blue is a delivery that kept its promise, crimson is a late one. The set passed a
-palette check (lightness band, chroma floor, colour-vision separation, contrast against the page).
-"""
+"""The colours the charts use for meaning."""
 
 BLUE = "#2468A8"      # on time, and anything with no better claim
 CRIMSON = "#C0283D"   # late, the problem

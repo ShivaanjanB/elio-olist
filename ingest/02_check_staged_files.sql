@@ -1,20 +1,10 @@
--- =============================================================================
--- ingest/02_check_staged_files.sql
 -- Look inside the staged files THROUGH the file format, before loading anything.
--- Run as ELIO_TRANSFORMER. Read-only.
---
--- Expected record counts come from profiling the raw CSVs (ingest/README.md):
---   customers 99,441 | order_items 112,650 | order_payments 103,886 | order_reviews 99,224
---   orders 99,441 | products 32,951 | sellers 3,095 | category translation 71
--- =============================================================================
 
 USE ROLE ELIO_TRANSFORMER;
 USE WAREHOUSE ELIO_WH;
 USE SCHEMA ELIO_OLIST.RAW;
 
--- 1. How many records does Snowflake read in each staged file? (header already skipped)
---    Reviews must be 99,224, not the 104,720 physical lines: that proves the quote rule
---    keeps multi-line comments together.
+-- 1. How many records does Snowflake read in each staged file?
 SELECT METADATA$FILENAME AS staged_file, COUNT(*) AS records
 FROM @ELIO_OLIST.RAW.OLIST_STAGE (FILE_FORMAT => 'ELIO_OLIST.RAW.OLIST_CSV')
 GROUP BY 1

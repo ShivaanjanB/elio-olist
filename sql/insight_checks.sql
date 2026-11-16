@@ -1,15 +1,6 @@
 -- Independent cross-checks for sql/insight_queries.sql (same method as sql/analytics_checks.sql, D55).
--- Each figure is recomputed from the STAGING views with their own timestamps and natural keys, and compared with the marts.
---
---   . .\scripts\load_env.ps1
---   .\.venv\Scripts\python.exe ingest\run_sql.py sql\insight_checks.sql
---
--- Every check returns: check_name, from_marts, from_staging, ok. Every ok must be TRUE.
 
--- ---------------------------------------------------------------------------------------------------------------------
 -- The order list rebuilt from staging: person, order number, delivered date, lateness and the latest review score.
--- (Repeated in each statement below so every statement runs on its own.)
--- ---------------------------------------------------------------------------------------------------------------------
 
 -- C6. Insight 1: review score by lateness band, every band, mart against staging. Bands differing must be 0.
 WITH latest_review AS (

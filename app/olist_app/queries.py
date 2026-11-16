@@ -1,9 +1,4 @@
-"""The SQL the app runs against ELIO_OLIST.MARTS.
-
-Each query is the same logic as the matching query in sql/analytics_queries.sql or sql/insight_queries.sql, reduced to the
-columns the app draws. Every name is fully qualified, and every query returns a few rows: the app never pulls order-level
-data except the freight of 3,264 later orders, which the voucher calculator needs to price a cap.
-"""
+"""The SQL the app runs against ELIO_OLIST.MARTS."""
 
 ARRIVAL_BANDS = """
 SELECT

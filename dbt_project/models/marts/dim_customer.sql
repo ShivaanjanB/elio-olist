@@ -1,18 +1,5 @@
 {#
   One row per PERSON (customer_unique_id), not per customer_id, which is new on every order (D12).
-  The location is the one used on the person's FIRST order, so it cannot change between runs (D13).
-
-  Two different questions about "coming back", kept apart on purpose (D46):
-    has_multiple_orders         the person has more than one order of any status. A plain count, NOT a loyalty measure:
-                                it includes baskets split over the same second and orders placed before the first
-                                one arrived.
-    repeat_after_first_delivery the person placed a later non-canceled order on or after the day the first order was
-                                delivered. This is the one to use when asking whether the first-order experience
-                                brought the person back. NULL when the first order was never delivered, because there
-                                was no experience to react to.
-
-  The order-level facts (delivery date, revenue flag) are read from fct_orders so each rule is defined once. The first
-  order counts every order whatever its status, a known caveat (D39).
 #}
 with person_orders as (
 

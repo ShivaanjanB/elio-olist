@@ -1,14 +1,10 @@
 version: 2
 
-# Intermediate: roll each child table up to ORDER grain, and rank each person's orders (D15, D29). Views, so they can be
-# queried while debugging. Every model is keyed by order_id; the tests prove it, because a repeated order_id here would
-# repeat rows in fct_orders and inflate every total.
+# Intermediate: roll each child table up to ORDER grain, and rank each person's orders (D15, D29).
 
 models:
   - name: int_order_items_rollup
-    description: >
-      One row per order that has items: how many, from how many sellers, and the sum of price and freight. An order with
-      no items is absent (775 orders), and becomes 0 in fct_orders.
+    description: "One row per order that has items: how many, from how many sellers, and the sum of price and freight."
     columns:
       - name: order_id
         description: The order. Unique here, which is the point of the roll-up.
@@ -37,9 +33,7 @@ models:
           - not_null
 
   - name: int_order_payments
-    description: >
-      One row per order that has payments: the total paid, the number of payments and the main payment method. One
-      delivered order has no payment and is absent.
+    description: "One row per order that has payments: the total paid, the number of payments and the main payment method."
     columns:
       - name: order_id
         description: The order. Unique here, which is the point of the roll-up.
@@ -69,9 +63,7 @@ models:
                 values: ['credit_card', 'boleto', 'voucher', 'debit_card', 'not_defined']
 
   - name: int_order_reviews
-    description: >
-      One row per order that has a review, holding the LATEST review (D14). 768 orders have no review and are absent, so
-      their score is NULL downstream and never 0.
+    description: "One row per order that has a review, holding the LATEST review (D14). 768 orders have no review and are absent, so their score is NULL downstream and never 0."
     columns:
       - name: order_id
         description: The order. Unique here, which is the point of the roll-up.
@@ -104,9 +96,7 @@ models:
           - not_null
 
   - name: int_customer_orders
-    description: >
-      One row per order, tagged with the person who placed it (customer_unique_id) and which of their orders it was
-      (order_number, 1 = their first). Shared by dim_customer and fct_orders so the ranking is defined once.
+    description: "One row per order, tagged with the person who placed it (customer_unique_id) and which of their orders it was (order_number, 1 = their first)."
     columns:
       - name: order_id
         description: The order. Unique, and every order appears.

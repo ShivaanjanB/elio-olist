@@ -1,8 +1,7 @@
 {#
-  One row per order that has a review, holding the LATEST review (D14). 547 orders have several reviews and no two
-  of them tie on answer time, but review_id is still the tie-break so the choice can never depend on row order.
-  review_count keeps the fact that there were several visible. An order with no review is absent here, so its score
-  is NULL in fct_orders and never 0.
+  One row per order that has a review, holding the LATEST review (D14). 547 orders have several reviews and no two of
+  them tie on answer time, but review_id is still the tie-break so the choice can never depend on row order.
+  review_count keeps the fact that there were several visible.
 #}
 with reviews as (
 

@@ -1,9 +1,4 @@
-# The dbt project for the Olist pipeline. Run dbt from this folder (see ../README.md).
-#
-# Layers (docs/data_model.md, decision D03):
-#   staging       views   one model per RAW table: typed, renamed, normalised
-#   intermediate  views   roll each child table up to order grain, rank each person's orders
-#   marts         tables  the star schema: 4 dimensions and 2 facts, each with an enforced contract
+# The dbt project for the Olist pipeline.
 name: olist
 version: "1.0.0"
 config-version: 2

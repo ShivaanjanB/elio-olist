@@ -2,10 +2,7 @@ version: 2
 
 sources:
   - name: olist
-    description: >
-      The Olist e-commerce CSVs as loaded by the ingest scripts into ELIO_OLIST.RAW: one table per file, every
-      source column as text, plus three lineage columns (_source_file, _source_row, _loaded_at). Never edited.
-      A static export, so no freshness check is configured.
+    description: "The Olist e-commerce CSVs as loaded by the ingest scripts into ELIO_OLIST.RAW: one table per file, every source column as text, plus three lineage columns (_source_file, _source_row, _loaded_at)."
     database: ELIO_OLIST
     schema: RAW
     tables:

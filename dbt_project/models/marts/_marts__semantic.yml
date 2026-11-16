@@ -1,14 +1,6 @@
 version: 2
 
 # Semantic layer (D73): the business words defined once, on top of the star schema.
-#
-# Nothing here changes a table or a number. Every measure is a plain SUM, COUNT or AVG over a column the marts already
-# carry, and every metric name below is a word the analysis already uses. The rules themselves still live where they were
-# decided: revenue skips canceled and unavailable orders in fct_orders.revenue (D47), "late" is fct_orders.is_late (D18),
-# and "came back" is dim_customer.repeat_after_first_delivery (D46). This file gives each one a single name that any
-# tool can ask for, so two tools cannot define "revenue" two different ways.
-#
-# The expected values are in docs/semantic_layer_checks.sql, which recomputes each metric from the marts.
 
 semantic_models:
 
@@ -145,9 +137,7 @@ metrics:
 
   - name: repeat_rate_after_first_delivery
     label: Repeat rate after first delivery
-    description: >
-      Share of people whose first order was delivered who then placed a later non-canceled order on or after the delivery day
-      (D46). Not a six-month rate: it counts any later order, so compare cohorts with a similar follow-up window (D53).
+    description: "Share of people whose first order was delivered who then placed a later non-canceled order on or after the delivery day (D46)."
     type: ratio
     type_params:
       numerator: returned_after_delivery

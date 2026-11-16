@@ -1,10 +1,5 @@
--- =============================================================================
--- docs/relationship_checks.sql
 -- Evidence for the data model (docs/data_model.md): what one row means in each RAW table
 -- (grain and keys), how the tables join, and how many child rows each parent has.
--- Read-only. Run as ELIO_TRANSFORMER:
---   .\.venv\Scripts\python.exe ingest\run_sql.py docs\relationship_checks.sql
--- =============================================================================
 
 USE ROLE ELIO_TRANSFORMER;
 USE WAREHOUSE ELIO_WH;
@@ -78,9 +73,8 @@ SELECT section, check_name, value FROM (
   UNION ALL SELECT 11, '3 fan-out', 'orders per customer_id (most)', MAX(c) FROM (SELECT COUNT(*) AS c FROM ELIO_OLIST.RAW.ORDERS GROUP BY customer_id)
 ) ORDER BY n;
 
--- 4. FAN-OUT DEMO: why every number must be summed at the grain it was recorded at.
---    price lives on order_items (one row per item); payment_value lives on order_payments (one row per
---    payment). Joining the two through order_id repeats each item once per payment of its order.
+-- 4. FAN-OUT DEMO: why every number must be summed at the grain it was recorded at. price lives on order_items (one
+-- row per item); payment_value lives on order_payments (one row per payment).
 SELECT what, value FROM (
   SELECT 1 AS n, 'rows in order_items' AS what, COUNT(*)::NUMBER(14,2) AS value FROM ELIO_OLIST.RAW.ORDER_ITEMS
   UNION ALL SELECT 2, 'rows after joining order_items to order_payments on order_id (inflated)', COUNT(*)

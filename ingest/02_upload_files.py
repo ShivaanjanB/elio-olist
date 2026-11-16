@@ -1,21 +1,4 @@
-"""Upload the Olist CSVs to the internal stage with PUT (ingest step 2.2).
-
-PUT cannot run from a Snowsight worksheet, so it runs here, through the Python connector,
-signed in as the pipeline service user with its key pair. Prints no secrets.
-
-What it does for each file listed below:
-  * PUT the file from data/raw/ to @ELIO_OLIST.RAW.OLIST_STAGE
-  * AUTO_COMPRESS=TRUE: Snowflake gzips it, so the staged name ends in .csv.gz
-  * OVERWRITE=FALSE (the default, written out): running this twice never duplicates or
-    replaces a staged file. Status SKIPPED on a second run means "already there".
-Then it refreshes the stage's directory table (so Snowsight lists the files) and LISTs the stage.
-
-Geolocation (olist_geolocation_dataset.csv) is deliberately NOT uploaded: the analysis works
-at state level, which customers and sellers already carry (see ingest/README.md).
-
-Run from the repo root, after `. .\\scripts\\load_env.ps1`:
-    .\\.venv\\Scripts\\python.exe ingest\\02_upload_files.py
-"""
+"""Upload the Olist CSVs to the internal stage with PUT (ingest step 2.2)."""
 import os
 import sys
 import warnings

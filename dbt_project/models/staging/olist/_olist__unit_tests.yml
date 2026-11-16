@@ -1,14 +1,10 @@
 version: 2
 
-# Unit tests for the staging layer. The real data has no repeated keys, so these made-up rows are what show the
-# de-duplication rule working: the newest load wins, a tie goes to the later row, and a review_id repeated across
-# DIFFERENT orders is not a duplicate (the key is the pair).
+# Unit tests for the staging layer.
 
 unit_tests:
   - name: test_stg_orders_keeps_the_newest_load_of_a_repeated_order
-    description: >
-      An order loaded twice keeps the newer copy. Two copies from the same load keep the one from the later file row,
-      so the result never depends on the order the rows are read (D71).
+    description: "An order loaded twice keeps the newer copy."
     model: stg_olist__orders
     given:
       - input: source('olist', 'orders')
@@ -25,9 +21,7 @@ unit_tests:
         - {order_id: o3, order_status: delivered}
 
   - name: test_stg_order_reviews_key_is_the_pair_not_the_review_id
-    description: >
-      The same review_id on two different orders is two reviews and both stay (this happens in the real data). Only a
-      repeat of the same (review_id, order_id) pair collapses, to its newest copy (D71).
+    description: "The same review_id on two different orders is two reviews and both stay (this happens in the real data)."
     model: stg_olist__order_reviews
     given:
       - input: source('olist', 'order_reviews')

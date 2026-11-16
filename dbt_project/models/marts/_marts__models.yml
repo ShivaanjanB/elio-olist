@@ -1,18 +1,11 @@
 version: 2
 
-# Marts: the star schema the analysis reads (docs/data_model.md section 7). Every model has an ENFORCED CONTRACT (D38):
-# each column is declared with its type, and dbt refuses to build the table if the query's columns or types differ.
-# That makes the shape of these tables a promise that cannot drift silently.
-#
-# Keys are proved with tests, since Snowflake does not enforce them (D11): unique and not_null on every key, and a
-# relationships test from each fact column to the dimension it points at.
+# Marts: the star schema the analysis reads (docs/data_model.md section 7).
 
 models:
   # ---------------------------------------------------------------- dimensions
   - name: dim_customer
-    description: >
-      One row per PERSON (96,096), keyed on customer_unique_id, because the customer_id on an order is new every time. The
-      location columns are those of the person's first order (D12).
+    description: "One row per PERSON (96,096), keyed on customer_unique_id, because the customer_id on an order is new every time."
     config:
       contract:
         enforced: true
@@ -46,9 +39,7 @@ models:
           - not_null
       - name: first_order_delivered_date
         data_type: date
-        description: >
-          Day the first order was delivered. NULL when it never was (1,153 people placed a canceled or unavailable first
-          order, and some others never received theirs), in which case repeat_after_first_delivery is NULL too.
+        description: "Day the first order was delivered."
       - name: order_count
         data_type: number(10,0)
         description: How many orders the person placed, whatever their status.
@@ -56,19 +47,12 @@ models:
           - not_null
       - name: has_multiple_orders
         data_type: boolean
-        description: >
-          True when the person has more than one order of any status. A plain count and NOT a loyalty measure: it includes
-          baskets split over the same second (276 people), orders placed before the first one arrived and canceled follow-ups.
-          Use repeat_after_first_delivery to ask whether the first experience brought the person back (D46).
+        description: "True when the person has more than one order of any status."
         data_tests:
           - not_null
       - name: repeat_after_first_delivery
         data_type: boolean
-        description: >
-          True when the person placed a later non-canceled order on or after the day the first order was delivered, so the
-          delivery experience could have influenced it. False when they did not. NULL when the first order was never
-          delivered, because there was no experience to react to. Restrict analysis to NOT NULL rows, and compare cohorts
-          with a similar follow-up window, since people whose first delivery was in 2018 had little time to return (D46).
+        description: "True when the person placed a later non-canceled order on or after the day the first order was delivered, so the delivery experience could have influenced it."
       - name: first_order_state
         data_type: varchar(2)
         description: State on the first order's address.
@@ -102,9 +86,7 @@ models:
           - not_null
       - name: category_name
         data_type: varchar
-        description: >
-          Category in English. Falls back to the Portuguese name for 13 products whose category has no translation, and to
-          'unknown' for 610 products with no category.
+        description: "Category in English. Falls back to the Portuguese name for 13 products whose category has no translation, and to 'unknown' for 610 products with no category."
         data_tests:
           - not_null
       - name: weight_g
@@ -200,10 +182,7 @@ models:
 
   # --------------------------------------------------------------------- facts
   - name: fct_orders
-    description: >
-      One row per order (99,441): the spine of the star. Holds every order, including those with no items, payments or
-      reviews, which carry counts of 0 and a NULL score (D21). Everything from the child tables arrives already rolled up
-      to order grain, so no join repeats an order. Revenue is the sum of items_price_total where is_revenue_order is true.
+    description: "One row per order (99,441): the spine of the star."
     config:
       contract:
         enforced: true
@@ -292,9 +271,7 @@ models:
         description: Calendar days from the estimated to the actual delivery. Positive means late, negative means early. NULL unless delivered_date is set.
       - name: is_late
         data_type: boolean
-        description: >
-          True when delivered after the estimated date, compared as dates (D18). NULL (not false) when the delivery is not
-          measurable, so a rate over this column uses only delivered orders.
+        description: "True when delivered after the estimated date, compared as dates (D18)."
       - name: item_count
         data_type: number(10,0)
         description: Units on the order. 0 for the 775 orders with no items.
@@ -322,10 +299,7 @@ models:
           - not_null
       - name: revenue
         data_type: number(12,2)
-        description: >
-          items_price_total for orders that count as revenue and 0 for canceled and unavailable ones (D17, D47). Sum this
-          for revenue. Summing items_price_total instead gives 13.59M rather than 13.49M. For average order value divide
-          by the orders that have revenue and at least one item, since 8 revenue-status orders have no items.
+        description: "items_price_total for orders that count as revenue and 0 for canceled and unavailable ones (D17, D47)."
         data_tests:
           - not_null
       - name: payment_total
@@ -359,11 +333,7 @@ models:
           - not_null
 
   - name: fct_order_items
-    description: >
-      One row per unit on an order (112,650); three of the same product are three rows, so there is no quantity column. The
-      grain for anything by product, category or seller. Sum revenue for revenue. Order-level columns such as is_late repeat
-      on every unit, and the money columns of fct_orders (gmv, freight_total, payment_total) must not be summed after joining
-      the two facts, because each order's total would be counted once per unit.
+    description: "One row per unit on an order (112,650); three of the same product are three rows, so there is no quantity column."
     config:
       contract:
         enforced: true
@@ -426,10 +396,7 @@ models:
           - not_null
       - name: is_late
         data_type: boolean
-        description: >
-          Whether the unit's ORDER was delivered late, copied from fct_orders (D48). NULL when the order's delivery is not
-          measurable. It repeats for every unit of the order, so for a seller's late rate count distinct order_id and
-          never rows. A multi-seller order counts once for each of its sellers.
+        description: "Whether the unit's ORDER was delivered late, copied from fct_orders (D48)."
       - name: price
         data_type: number(12,2)
         description: Price of the unit, excluding freight and including canceled and unavailable orders. Use revenue for revenue (D16).

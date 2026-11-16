@@ -1,9 +1,5 @@
 {#
-  Rolls the payment rows up to ORDER grain: one row per order that has payments. An order can be paid in up to 29
-  pieces and by mixed methods, so joining payments to anything at item or order level would inflate every total (D15).
-
-  primary_payment_type is the type of the LARGEST payment. The two largest payments tie on value for 188 orders, so
-  the tie is broken by payment_sequential (the earlier payment wins) to keep the answer stable between runs (D43).
+  Rolls the payment rows up to ORDER grain: one row per order that has payments.
 #}
 with payments as (
 

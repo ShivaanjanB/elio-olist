@@ -1,14 +1,10 @@
 version: 2
 
 # Unit tests: tiny made-up inputs with a known answer, so the RULE in each model is checked rather than just the data.
-# The data tests prove the real data is clean; these prove the logic is right, including cases that do not occur in the
-# data today (an exact tie on review time, say) but would after a reload.
 
 unit_tests:
   - name: test_first_order_tie_is_broken_by_order_id
-    description: >
-      Two orders by the same person at the same second: the smaller order_id is order 1, every time (D13). A second
-      person with one order starts again at 1, so ranks never leak between people.
+    description: "Two orders by the same person at the same second: the smaller order_id is order 1, every time (D13)."
     model: int_customer_orders
     given:
       - input: ref('stg_olist__orders')
@@ -31,9 +27,7 @@ unit_tests:
         - {order_id: o_d, customer_unique_id: person_2, order_number: 1, customer_state: BA}
 
   - name: test_latest_review_wins_and_the_count_is_kept
-    description: >
-      An order reviewed twice keeps the later review and reports review_count 2 (D14). When two reviews were answered at
-      the same moment the smaller review_id wins, so the choice never depends on row order.
+    description: "An order reviewed twice keeps the later review and reports review_count 2 (D14)."
     model: int_order_reviews
     given:
       - input: ref('stg_olist__order_reviews')
@@ -50,9 +44,7 @@ unit_tests:
         - {order_id: o_3, review_id: r_4, review_score: 4, review_count: 2}
 
   - name: test_primary_payment_is_the_largest_and_ties_go_to_the_earlier_payment
-    description: >
-      The primary type is that of the largest payment (D15). On an exact tie in value the earlier payment_sequential
-      wins (D43). Totals, counts and the largest instalment count are rolled up with it.
+    description: "The primary type is that of the largest payment (D15)."
     model: int_order_payments
     given:
       - input: ref('stg_olist__order_payments')

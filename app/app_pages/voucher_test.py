@@ -26,9 +26,10 @@ st.caption(
     "data says what a voucher does, and finding that out is the point of the test."
 )
 
-# --- Assumptions ---------------------------------------------------------------------------------------------------------
-# Two columns of controls across the top (the voucher on the left, your business on the right), so the results
-# below get the full width. Beside the controls the metrics and charts were cramped.
+# --- Assumptions
+# --------------------------------------------------------------------------------------------------------- Two
+# columns of controls across the top (the voucher on the left, your business on the right), so the results below get
+# the full width.
 st.subheader("Assumptions")
 effect_col, people_col = st.columns(2, gap="large")
 with effect_col:

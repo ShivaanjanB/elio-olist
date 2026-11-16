@@ -1,16 +1,4 @@
--- =============================================================================
--- ingest/00_setup_account.sql
 -- One-off Snowflake setup for the Olist pipeline.
--- Run once in a Snowsight worksheet as ACCOUNTADMIN (the trial's default role).
--- Safe to re-run: every statement is CREATE ... IF NOT EXISTS or a GRANT.
---
--- Creates
---   role       ELIO_TRANSFORMER  owns the pipeline schemas; used by ingest and dbt
---   warehouse  ELIO_WH           X-Small, suspends after 60 s idle
---   database   ELIO_OLIST        RAW schema here; dbt creates STAGING / INTERMEDIATE / MARTS
---   monitor    ELIO_MONITOR      credit cap so a runaway query can't drain the trial
---   user       ELIO_SVC          service user (key-pair only, no password) for scripts, dbt, CI
--- =============================================================================
 
 -- 1. Role -------------------------------------------------------------------
 --    SECURITYADMIN manages roles and grants (least privilege: not ACCOUNTADMIN).
@@ -23,8 +11,6 @@ CREATE ROLE IF NOT EXISTS ELIO_TRANSFORMER
 GRANT ROLE ELIO_TRANSFORMER TO ROLE SYSADMIN;
 
 -- Let the person running this script use the role in Snowsight too.
--- Double quotes because trial user names can contain dots and lower case (e.g. first.last.123),
--- and such names only work as quoted identifiers.
 SET my_user = '"' || CURRENT_USER() || '"';
 GRANT ROLE ELIO_TRANSFORMER TO USER IDENTIFIER($my_user);
 
@@ -65,9 +51,8 @@ CREATE RESOURCE MONITOR IF NOT EXISTS ELIO_MONITOR
 
 ALTER WAREHOUSE ELIO_WH SET RESOURCE_MONITOR = ELIO_MONITOR;
 
--- 5. Service user for scripts, dbt and CI -----------------------------------
---    TYPE = SERVICE means no password and no MFA prompts: it can only sign in with the key.
---    Replace the placeholder with the one-line public key (see ingest/README.md).
+-- 5. Service user for scripts, dbt and CI ----------------------------------- TYPE = SERVICE means no password and no
+-- MFA prompts: it can only sign in with the key.
 USE ROLE SECURITYADMIN;
 
 CREATE USER IF NOT EXISTS ELIO_SVC

@@ -1,13 +1,6 @@
 {#
   Staging must be a 1:1 view of RAW once repeated keys are collapsed: no row gained, and none lost except a repeat of
-  a key. So each model's row count is compared with the number of DISTINCT keys in its source table. Today those equal
-  the plain row counts, because no key repeats (raw_keys_are_unique warns if one ever does). Returns one row per model
-  whose count differs; the test passes when nothing is returned.
-
-  Why this exists: a wrong join or filter added to a staging model would not trip a key test, because
-  the surviving rows can still be unique. A count comparison catches it.
-
-  Debugging a failure: compare the two counts, then check the model's SQL for a where clause or join.
+  a key.
 #}
 with counts as (
 

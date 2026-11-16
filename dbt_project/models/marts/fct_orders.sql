@@ -1,16 +1,5 @@
 {#
-  One row per ORDER: the spine of the star (D21). It starts from every order and LEFT JOINs the four intermediate models,
-  each already at order grain, so no join can repeat an order row (D15, D29). Orders with no items, payments or reviews
-  stay, with counts of 0 and a NULL score.
-
-  Customer key: computed from customer_unique_id with the same macro dim_customer uses (D41). The relationships test
-  proves every order finds its person.
-
-  revenue is items_price_total where the order counts as revenue and 0 where it does not (D47), so a plain
-  SUM(revenue) is already the right revenue. items_price_total is the unfiltered amount.
-
-  Delivery measures (D18, D19): calendar days at DATE grain, and only for orders with status 'delivered' that have a
-  customer-delivery date. Everything else is NULL, never 0, so an average ignores them.
+  One row per ORDER: the spine of the star (D21).
 #}
 with orders as (
 

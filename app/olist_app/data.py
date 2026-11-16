@@ -1,10 +1,4 @@
-"""Where the app's numbers come from.
-
-Live: when the pipeline's Snowflake settings are in the environment (the same variables as the ingest scripts and dbt), the
-app reads the marts directly. Snapshot: otherwise, or if Snowflake cannot be reached, it reads app/snapshot/snapshot.json,
-a small file of aggregate results written by app/make_snapshot.py. The snapshot holds no order-level rows. Both paths run
-the same queries, so the app looks the same either way, and the page says which one it is using.
-"""
+"""Where the app's numbers come from."""
 from __future__ import annotations
 
 import json

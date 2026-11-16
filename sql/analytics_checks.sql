@@ -1,13 +1,6 @@
--- Independent cross-checks for sql/analytics_queries.sql.
---
--- Each check recomputes a figure from the STAGING views, by a different route from the marts (staging timestamps and
--- natural keys instead of the facts' dates and surrogate keys), and compares it with the same figure taken from the marts.
--- The tests in dbt prove the marts agree with staging in total; these prove the specific numbers the analysis uses.
---
---   . .\scripts\load_env.ps1
---   .\.venv\Scripts\python.exe ingest\run_sql.py sql\analytics_checks.sql
---
--- Every check returns rows of: check_name, from_marts, from_staging, ok. Every ok must be TRUE.
+-- Independent cross-checks for sql/analytics_queries.sql. Each check recomputes a figure from the STAGING views, by a
+-- different route from the marts (staging timestamps and natural keys instead of the facts' dates and surrogate
+-- keys), and compares it with the same figure taken from the marts.
 
 
 -- C1. Revenue by category (Q1): every category, mart against staging. mismatches must be 0.

@@ -5,10 +5,7 @@ version: 2
 
 unit_tests:
   - name: test_late_is_measured_at_date_grain
-    description: >
-      The estimated date always sits at midnight, so an order delivered on the estimated day in the afternoon is on time
-      (D18): days_vs_estimate is 0 and is_late is false, even though a timestamp comparison would call it late. Days to
-      deliver are calendar days from the purchase date (D44).
+    description: "The estimated date always sits at midnight, so an order delivered on the estimated day in the afternoon is on time (D18): days_vs_estimate is 0 and is_late is false, even though a timestamp comparison would call it late."
     model: fct_orders
     given:
       - input: ref('stg_olist__orders')
@@ -34,11 +31,7 @@ unit_tests:
         - {order_id: o_late, days_to_deliver: 9, days_vs_estimate: 2, is_late: true, customer_order_number: 2, is_first_order: false}
 
   - name: test_orders_without_children_are_kept_and_odd_deliveries_are_not_measured
-    description: >
-      Orders are the spine (D21): an order with no items, payment or review stays, with counts of 0, money of 0 and a NULL
-      score, never dropped. A canceled order that has items keeps its item price but has revenue 0 (D47). A canceled order carrying a stray delivery date, and a delivered order with no date, get NULL
-      delivery measures and NULL is_late rather than false (D19). Canceled orders are not revenue orders (D17).
-      gmv is items price plus freight, and payment_total stays separate (D16).
+    description: "Orders are the spine (D21): an order with no items, payment or review stays, with counts of 0, money of 0 and a NULL score, never dropped."
     model: fct_orders
     given:
       - input: ref('stg_olist__orders')
@@ -68,11 +61,7 @@ unit_tests:
         - {order_id: o_no_date, is_revenue_order: true, item_count: 0, items_price_total: 0.00, freight_total: 0.00, gmv: 0.00, revenue: 0.00, payment_total: 0.00, payment_count: 0, installments_max: null, review_score: null, review_count: 0, days_to_deliver: null, is_late: null}
 
   - name: test_repeat_after_first_delivery_needs_a_later_revenue_order_placed_after_delivery
-    description: >
-      A person came back only if a later non-canceled order was placed on or after the day the first order was delivered
-      (D46). Ordering again before the first order arrived does not count, nor does a canceled follow-up. A person whose
-      first order was never delivered has no experience to react to, so the flag is NULL rather than false. Ordering
-      again on the delivery day counts.
+    description: "A person came back only if a later non-canceled order was placed on or after the day the first order was delivered (D46)."
     model: dim_customer
     given:
       - input: ref('int_customer_orders')
