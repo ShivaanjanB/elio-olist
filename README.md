@@ -205,3 +205,9 @@ What I'd do next, in order:
 I worked on feature branches with one pull request per phase (ingest, data model, staging, marts, analytics, insights, packaging),
 each merged with a merge commit, so the history reads in the order the work happened. The app, the answers file, a staging
 de-duplication change, a memo fix and the semantic layer each got their own pull request after that.
+
+## What was new to me, and how I got up to speed
+
+Snowflake was new to me, so stages and `COPY INTO`, warehouses (which turn out to be compute, not storage), and roles and key-pair
+logins were all things I picked up during this project. I'd used dbt a little before, so it was nice to brush up on it here and go
+further with tests, contracts, unit tests and a proper star schema. I'll go through how I got up to speed in the session.
