@@ -91,18 +91,6 @@ The CSV count comes from Python's `csv` module, which doesn't depend on Snowflak
 | Portuguese accents read correctly | 22,658 review messages, 2,636 review titles and 3 seller cities contain accents; **0** show the garbling of a wrong encoding. Customer city names are ASCII-only, as profiled. |
 | Facts from the pre-load profile hold in the loaded tables | 14 of 14 reproduced exactly: statuses, delivered count, blank dates, key uniqueness, repeating `review_id`s (789) and orders with several reviews (547), people with several orders (2,997), `not_defined` payments (3), products with no category (610) |
 
-### Blanks, in numbers (NULLs in RAW)
-
-| Table | Column | NULLs |
-|---|---|---:|
-| `ORDERS` | `order_approved_at` | 160 |
-| `ORDERS` | `order_delivered_carrier_date` | 1,783 |
-| `ORDERS` | `order_delivered_customer_date` | 2,965 |
-| `ORDER_REVIEWS` | `review_comment_title` | 87,656 |
-| `ORDER_REVIEWS` | `review_comment_message` | 58,247 |
-| `PRODUCTS` | category, name length, description length, photos | 610 each |
-| `PRODUCTS` | weight, length, height, width | 2 each |
-
 ### Rebuild path (tested)
 
 `truncate_raw_tables.sql` empties the tables, which also clears Snowflake's record of which files were loaded ("no history"). Re-running `04_load.sql` then loads every file again with the same counts, and `05_reconcile.py` goes green again. Running `04_load.sql` a **second time without truncating** loads nothing (`Copy executed with 0 files processed`), so it can't duplicate rows.

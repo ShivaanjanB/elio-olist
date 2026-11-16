@@ -124,7 +124,7 @@ staging de-duplicates, D71), and every `ok` in the two cross-check files was `Tr
 
 Snowflake doesn't enforce keys, so every key has a dbt test, and every mart has an enforced contract (the columns and types are
 declared, and dbt refuses to build if they drift). There are 73 decisions in [`docs/decision_log.md`](docs/decision_log.md), each
-with the alternatives I looked at, why I picked what I did and the evidence. The ER diagram, the normalisation reasoning and the
+with what I picked it over and why. The ER diagram, the normalisation reasoning and the
 star schema are in [`docs/data_model.md`](docs/data_model.md).
 
 I've also defined the main business words (revenue, orders, average order value, late delivery rate, average review score, repeat

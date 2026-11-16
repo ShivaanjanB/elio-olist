@@ -1,8 +1,8 @@
 # Data model
 
-How the Olist data is organised in Snowflake, from the raw files to the star schema the analysis reads. Each choice is argued in [`decision_log.md`](decision_log.md) (IDs like D07 below point there), and the numbers behind them are reproducible with [`relationship_checks.sql`](relationship_checks.sql) and [`type_and_design_checks.sql`](type_and_design_checks.sql).
+How the Olist data is organised in Snowflake, from the raw files to the star schema. The D numbers point to [`decision_log.md`](decision_log.md), and the figures come from [`relationship_checks.sql`](relationship_checks.sql) and [`type_and_design_checks.sql`](type_and_design_checks.sql).
 
-**The one-line justification:** normalise in staging so each fact lives in one place and key tests mean something; denormalise to a star in the marts so a business question is one join away and fast.
+The idea in one line: normalise in staging so each fact lives in one place, then denormalise into a star in the marts so a business question is one join away.
 
 ## 1. Layers
 
@@ -15,7 +15,7 @@ All layers live in the database `ELIO_OLIST`, built by the role `ELIO_TRANSFORME
 | `INTERMEDIATE` | dbt | Views | 4 models, `int_*` | Roll each child table up to **order grain** (the fan-out fix), and rank each person's orders. |
 | `MARTS` | dbt | Tables | 4 dimensions and 2 facts: `dim_*`, `fct_*` | The star schema. Surrogate keys, documented columns, enforced contracts. |
 
-Why these materialisations (D03): staging views stay current and cost nothing; intermediate views (rather than `ephemeral`) can be queried and tested while debugging; mart tables are what analysts hit, so the join work is paid once. dbt creates the schemas, and a `generate_schema_name` override makes them named exactly `STAGING`, `INTERMEDIATE` and `MARTS` (D02).
+Views stay current and can be queried while debugging; the marts are tables because that's what analysts hit (D03). A `generate_schema_name` override keeps the schema names exact (D02).
 
 ## 2. What the marts must answer (the design works backwards from this)
 
@@ -134,56 +134,28 @@ erDiagram
 
 ### The deliberate break from 3NF (D24)
 
-City and state stay on the address (and on the seller) instead of moving to a zip-prefix table. Strict 3NF would say `zip_code_prefix` determines city and state. In this data it does not:
+City and state stay on the address (and on the seller) rather than in a zip-prefix table, because here a zip prefix doesn't decide the city or state:
 
 | | Zip prefixes | With more than 1 city | With more than 1 state |
 |---|---:|---:|---:|
 | Customers | 14,994 | 39 | 0 |
 | Sellers | 2,246 | 34 | 17 |
 
-A zip table would invent a dependency the data does not have.
 
 ## 4. Column types in staging (D07, D08)
 
-Every type was tested against the loaded data: all identifiers are exactly 32 characters with no blanks, all timestamps parse, no money value has more than 2 decimals, and every whole-number column has no decimal point. Free text gets no length, since declaring one adds nothing in Snowflake; fixed-width codes get exact widths.
+Every type was checked against the loaded data first. Each column's type is set in the staging SQL through three small macros (D34). The rules:
 
-| Staging model | Column | Type | Note |
-|---|---|---|---|
-| `stg_olist__orders` | `order_id`, `customer_id` | `VARCHAR(32)` | |
-| | `order_status` | `VARCHAR` | 8 values, checked with `accepted_values` |
-| | `order_purchase_timestamp` | `TIMESTAMP_NTZ` | |
-| | `order_approved_at` | `TIMESTAMP_NTZ` | 160 NULL |
-| | `order_delivered_carrier_date` | `TIMESTAMP_NTZ` | 1,783 NULL |
-| | `order_delivered_customer_date` | `TIMESTAMP_NTZ` | 2,965 NULL |
-| | `order_estimated_delivery_date` | `TIMESTAMP_NTZ` | Always at 00:00:00, so "late" is compared at date grain (D18) |
-| `stg_olist__order_items` | `order_id`, `product_id`, `seller_id` | `VARCHAR(32)` | |
-| | `order_item_id` | `NUMBER(10,0)` | 1 to 21 |
-| | `shipping_limit_date` | `TIMESTAMP_NTZ` | |
-| | `price`, `freight_value` | `NUMBER(12,2)` | Price up to 6,735.00; 383 items have 0.00 freight |
-| `stg_olist__customers` | `customer_id`, `customer_unique_id` | `VARCHAR(32)` | |
-| | `customer_zip_code_prefix` | `VARCHAR(5)` | Text, to keep leading zeros |
-| | `customer_city` | `VARCHAR` | Up to 32 characters |
-| | `customer_state` | `VARCHAR(2)` | 27 values |
-| `stg_olist__order_payments` | `order_id` | `VARCHAR(32)` | |
-| | `payment_sequential` | `NUMBER(10,0)` | 1 to 29 |
-| | `payment_type` | `VARCHAR` | credit_card, boleto, voucher, debit_card, not_defined (3 rows) |
-| | `payment_installments` | `NUMBER(10,0)` | 0 to 24; 2 payments show 0 |
-| | `payment_value` | `NUMBER(12,2)` | Up to 13,664.08; 9 payments are 0.00 |
-| `stg_olist__order_reviews` | `review_id`, `order_id` | `VARCHAR(32)` | `review_id` alone is not unique |
-| | `review_score` | `NUMBER(1,0)` | 1 to 5 |
-| | `review_comment_title` | `VARCHAR` | 87,656 NULL |
-| | `review_comment_message` | `VARCHAR` | 58,247 NULL |
-| | `review_creation_date`, `review_answer_timestamp` | `TIMESTAMP_NTZ` | |
-| `stg_olist__products` | `product_id` | `VARCHAR(32)` | |
-| | `product_category_name` | `VARCHAR` | 610 NULL |
-| | `product_name_length`, `product_description_length` | `NUMBER(10,0)` | Renamed from the source's `_lenght` (D06); 610 NULL |
-| | `product_photos_qty` | `NUMBER(10,0)` | 610 NULL |
-| | `product_weight_g`, `product_length_cm`, `product_height_cm`, `product_width_cm` | `NUMBER(10,0)` | 2 NULL; 4 products weigh 0 g |
-| `stg_olist__sellers` | `seller_id` | `VARCHAR(32)` | |
-| | `seller_zip_code_prefix` | `VARCHAR(5)` | |
-| | `seller_city` | `VARCHAR` | Up to 40 characters |
-| | `seller_state` | `VARCHAR(2)` | 23 values |
-| `stg_olist__product_category_translation` | `product_category_name`, `product_category_name_english` | `VARCHAR` | 71 rows |
+| Kind | Type | Why |
+|---|---|---|
+| Identifiers | `VARCHAR(32)` | All exactly 32 characters, no blanks |
+| State | `VARCHAR(2)` | Always two letters |
+| Zip prefix | `VARCHAR(5)` | Text, so the leading zero stays (D08) |
+| Timestamps | `TIMESTAMP_NTZ` | The source has no time zone (D09); estimated delivery dates always sit at midnight (D18) |
+| Money | `NUMBER(12,2)` | Never more than 2 decimals |
+| Counts and lengths | `NUMBER(10,0)` | Whole numbers only |
+| Review score | `NUMBER(1,0)` | 1 to 5 |
+| Free text | `VARCHAR` | No length, since it adds nothing in Snowflake |
 
 ## 5. Keys and tests (D10, D11)
 
@@ -195,18 +167,11 @@ Snowflake does not enforce primary or foreign keys, so every key is **proved wit
 | Intermediate | Natural keys, at order grain (`int_customer_orders` at order grain too) | `unique` and `not_null` on `order_id` |
 | Marts | Surrogate keys on the dimensions (`customer_sk`, `product_sk`, `seller_sk`) from a local `generate_surrogate_key` macro (D30, D42); `fct_orders` keyed on `order_id`, `fct_order_items` on a one-column hash `order_item_key` (D10) | `unique`, `not_null`, `relationships` from each fact to each dimension and to `dim_date` for every date column; enforced contracts (D38); reconciliation, one-first-order and golden-number checks and unit tests (below) |
 
-Singular tests on the marts, which catch what key tests cannot (D45). Each returns the rows that break the rule, so it passes when empty:
-- `marts_row_counts_match_staging`: every mart has exactly the rows of the grain it should (99,441 orders, 112,650 items, 96,096 people, 32,951 products, 3,095 sellers, 1,096 days).
-- `marts_totals_reconcile`: item price, freight, item count, payment total, payment count and reviewed orders add up to staging. A fan-out leaves every key unique and still inflates a sum, which is what this catches.
-- `marts_one_first_order_per_person`: every person has exactly one first order. Compared per person, because matching totals can hide one person with none and another with two.
-- `marts_payments_match_items_plus_freight` (warn): per-order payments against item price plus freight, warning when more than 1% of orders differ by over 1.00 (0.25% today, D60).
-- `marts_golden_numbers`: the headline figures worked out from RAW before the marts existed (revenue 13,494,400.74, 6,534 late of 96,470, 96,096 people, 2,997 with several orders, 1,813 who came back after delivery, and others). A changed definition fails the build until the number is deliberately re-pinned.
-
-Unit tests (`_int__unit_tests.yml`, `_marts__unit_tests.yml`) give made-up inputs a known answer, to prove the rules the data tests cannot: the first-order tie-break (D13), the latest review and its tie-break (D14), the payment tie-break (D43), lateness at date grain and orders without children (D18, D19, D21), and the repeat definition (D46).
+On top of those, a few singular tests on the marts catch what key tests can't (D45): the row count of each mart, totals that reconcile with staging, exactly one first order per person, payments against items plus freight (a warning, D60), and golden numbers worked out from RAW before the marts existed. Unit tests give made-up inputs a known answer, to prove the tie-breaks, the lateness rule and the repeat definition.
 
 ## 6. Intermediate models: the fan-out fix (D14, D15, D29)
 
-An order has up to 21 items, 29 payments and several reviews, so joining those children to the orders directly repeats the order's row. The demonstration in `relationship_checks.sql` shows `SUM(payment_value)` rising 26.9% after one careless join. Each child is therefore rolled up to **one row per order** before it meets the orders.
+An order has up to 21 items, 29 payments and several reviews, so joining those straight onto orders repeats the order's row (one careless join pushes `SUM(payment_value)` up 26.9%). So each one is rolled up to **one row per order** first.
 
 | Model | Grain | What it adds | Rule |
 |---|---|---|---|
@@ -306,59 +271,36 @@ erDiagram
 
 | Table | Grain | Primary key | Built from |
 |---|---|---|---|
-| `fct_orders` | One order | `order_id` | `stg_olist__orders`, then `LEFT JOIN`s to the four `int_` models. `customer_sk` is computed from `customer_unique_id` with the same macro as `dim_customer` (D41), not looked up. |
-| `fct_order_items` | One unit on an order | `order_item_key` (hash of `order_id` and `order_item_id`) | `stg_olist__order_items` joined to `fct_orders` for `purchase_date`, `is_revenue_order` and `is_late` (D48) |
-| `dim_customer` | One person (`customer_unique_id`) | `customer_sk` | `int_customer_orders` (first order's location, D12) and `fct_orders` (delivery date and revenue flag for the repeat measures, D46) |
+| `fct_orders` | One order | `order_id` | `stg_olist__orders` plus `LEFT JOIN`s to the four `int_` models; `customer_sk` is computed with the same macro as `dim_customer` (D41) |
+| `fct_order_items` | One unit on an order | `order_item_key` (hash of `order_id` and `order_item_id`) | `stg_olist__order_items`, with the order-level flags from `fct_orders` (D48) |
+| `dim_customer` | One person (`customer_unique_id`) | `customer_sk` | `int_customer_orders` and `fct_orders` (D12, D46) |
 | `dim_product` | One product | `product_sk` | `stg_olist__products` and the category translation (D22) |
 | `dim_seller` | One seller | `seller_sk` | `stg_olist__sellers` (D23) |
-| `dim_date` | One day, 2016-01-01 to 2018-12-31 | `date_day` | Generated inline with Snowflake's `GENERATOR`, no package and no macro (D25, D40) |
+| `dim_date` | One day, 2016-01-01 to 2018-12-31 | `date_day` | Generated with Snowflake's `GENERATOR` (D25, D40) |
 
 Orders are the spine: `fct_orders` starts from **every** order and `LEFT JOIN`s the rest, so orders with no items, payments or reviews are kept with counts of 0 and a NULL score (D21).
 
 ## 8. Metric definitions
 
-Defined once here and implemented once in the marts, so every query uses the same meaning.
+Each one is defined once here and built once in the marts, so every query means the same thing.
 
-| Metric | Definition | Why |
-|---|---|---|
-| `is_revenue_order` | `order_status` is not `canceled` and not `unavailable` | Money for those was never collected. In-flight statuses count as committed sales. (D17) |
-| Revenue | `SUM(revenue)`, where `revenue` is the item price on revenue orders and 0 elsewhere, excluding freight | Items can be attributed to a category, product or seller; payments cannot. A bare `SUM(price)` gives 13.59M instead of 13.49M. (D16, D47) |
-| `gmv` | `price + freight_value` | The full amount charged for the goods and their delivery. |
-| `payment_total` | `SUM(payment_value)` per order | Cash collected. Kept apart from revenue because it includes financing and vouchers. |
-| Average order value | Revenue divided by the revenue orders that have at least one item (98,199) | 8 revenue-status orders have no items. (D47) |
-| `days_to_deliver` | Calendar days from purchase date to customer-delivery date, delivered orders with a delivery date only | (D19) |
-| `days_vs_estimate` | Calendar days from the estimated delivery date to the actual one; positive means late | |
-| `is_late` | `days_vs_estimate > 0`, NULL where not measurable | Measured at date grain because estimates sit at midnight: 6,534 of 96,470 delivered orders (6.77%), where a timestamp comparison would give 7,826. (D18) |
-| `freight_ratio` | `freight_total` divided by `items_price_total` | |
-| `is_first_order` | `order_number = 1` for the person | First order is the earliest purchase, ties broken by `order_id`, whatever its status. (D13, D39) |
-| `has_multiple_orders` | The person has more than one order of any status | A plain count, not a loyalty measure: it includes split baskets and orders placed before the first arrived. 2,997 people. (D46) |
-| `repeat_after_first_delivery` | A later non-canceled order was placed on or after the day the first order was delivered; NULL when the first order was never delivered | A second order cannot react to a delivery that had not happened. 1,813 of 93,248 people with a delivered first order (1.94%). (D46) |
-| Seller late rate | Late orders divided by measurable orders, counting distinct `order_id` | Units repeat the order's flag: 6.77% by order against 6.59% by unit. A multi-seller order counts once per seller. (D48) |
+| Metric | Definition |
+|---|---|
+| `is_revenue_order` | Status is not `canceled` or `unavailable` (D17) |
+| Revenue | `SUM(revenue)`: the item price on revenue orders, 0 elsewhere, no freight (D16, D47) |
+| `gmv` | `price + freight_value` |
+| `payment_total` | `SUM(payment_value)` per order: cash collected, kept apart from revenue |
+| Average order value | Revenue divided by the revenue orders with at least one item, 98,199 of them (D47) |
+| `days_to_deliver` | Calendar days from purchase to delivery, delivered orders only (D19) |
+| `days_vs_estimate` | Calendar days from the estimated to the actual delivery; positive means late |
+| `is_late` | `days_vs_estimate > 0`, NULL when it can't be measured: 6,534 of 96,470 (6.77%) (D18) |
+| `freight_ratio` | `freight_total` divided by `items_price_total` |
+| `is_first_order` | The person's earliest order, ties broken by `order_id`, whatever its status (D13, D39) |
+| `has_multiple_orders` | More than one order of any status: a plain count, not loyalty (D46) |
+| `repeat_after_first_delivery` | A later non-canceled order on or after the first delivery day; NULL if the first order never arrived. 1,813 of 93,248 (1.94%) (D46) |
+| Seller late rate | Late orders over measurable orders, counting distinct orders (D48) |
 
-## 9. Data quirks and how the model treats them
-
-| Quirk | Treatment | Decision |
-|---|---|---|
-| `customer_id` is new on every order | The person is `customer_unique_id`; `dim_customer` is at that grain | D12 |
-| A person's location differs between orders (39 span states) | `dim_customer` carries the first order's location; every address stays in `stg_olist__customers` | D12 |
-| 276 people have their first order tied on the timestamp | Tie broken by `order_id`, so the result is stable | D13 |
-| `review_id` is not unique; 547 orders have several reviews | The latest review per order, with `review_count` | D14 |
-| Payments and items multiply each other in a join | Each rolled up to order grain first | D15, D29 |
-| 775 orders have no items | Kept in `fct_orders`, not counted as revenue | D17, D21 |
-| 13 products have a category with no English name; 610 have none at all | English, else Portuguese, else `unknown` | D22 |
-| Estimated delivery dates sit at midnight | "Late" compared at date grain | D18 |
-| 8 delivered orders have no delivery date; 6 non-delivered orders have one | Delivery metrics use `delivered` orders with a date only | D19 |
-| 23 orders were delivered before the carrier pickup date | Kept and flagged; the metric does not use that field | D20 |
-| 2 payments with 0 installments, 9 of 0.00, 4 products at 0 g, 383 items with free freight | Kept as the source states them | D26 |
-| Source timestamps carry no time zone | Kept as `TIMESTAMP_NTZ`, Brazil local time assumed and unverified | D09 |
-| Geolocation has about a million rows | Not modelled | D27 |
-| 1,153 people have a canceled or unavailable first order (55 ordered again) | The first order counts every order; the repeat analysis uses delivered first orders only | D39, D46 |
-| 2,997 people have more than one order, but only 1,813 came back after the first delivery (276 tie on the first timestamp, 897 ordered the same day, 1,070 ordered again before the first delivery) | Two separate measures, `has_multiple_orders` and `repeat_after_first_delivery` | D46 |
-| Cohorts differ in follow-up time: the return rate falls from 3.5% (early 2017 deliveries) to 0.46% (mid 2018) | Compare cohorts over the same window | D46 |
-| 8 revenue-status orders have no items | Left out of the average order value | D47 |
-| Items repeat their order's late flag; 1,278 orders have several sellers | Seller late rate counts distinct orders | D48 |
-
-## 10. dbt layout
+## 9. dbt layout
 
 ```
 dbt_project/models/
@@ -371,9 +313,9 @@ dbt_project/tests/      generic/unique_combination_of_columns, staging_row_count
                         marts_one_first_order_per_person, marts_golden_numbers
 ```
 
-Descriptions go on every mart column and say what the value means rather than restating the column name.
+Every mart column has a description.
 
-## 11. Not modelled, on purpose
+## 10. Not modelled, on purpose
 
 - **Geolocation:** the analysis works at state level, which customers and sellers already carry (D27).
 - **Slowly changing dimension history:** the data is a static export, so a snapshot would show nothing (D28).
