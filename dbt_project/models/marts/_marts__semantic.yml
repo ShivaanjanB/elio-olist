@@ -1,0 +1,190 @@
+version: 2
+
+# Semantic layer (D73): the business words defined once, on top of the star schema.
+#
+# Nothing here changes a table or a number. Every measure is a plain SUM, COUNT or AVG over a column the marts already
+# carry, and every metric name below is a word the analysis already uses. The rules themselves still live where they were
+# decided: revenue skips canceled and unavailable orders in fct_orders.revenue (D47), "late" is fct_orders.is_late (D18),
+# and "came back" is dim_customer.repeat_after_first_delivery (D46). This file gives each one a single name that any
+# tool can ask for, so two tools cannot define "revenue" two different ways.
+#
+# The expected values are in docs/semantic_layer_checks.sql, which recomputes each metric from the marts.
+
+semantic_models:
+
+  # ------------------------------------------------------------------ orders: one row per order
+  - name: orders
+    description: One row per order. The base for revenue, order counts, delivery and review metrics.
+    model: ref('fct_orders')
+    defaults:
+      agg_time_dimension: purchase_date
+
+    entities:
+      - name: order_id            # not "order": that is a reserved SQL word and breaks the generated query
+        type: primary
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_sk
+
+    dimensions:
+      - name: purchase_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: order_status
+        type: categorical
+      - name: customer_state
+        type: categorical
+      - name: is_first_order
+        type: categorical
+      - name: is_late
+        type: categorical
+      - name: primary_payment_type
+        type: categorical
+
+    measures:
+      - name: order_count
+        description: Every order, whatever its status.
+        agg: count
+        expr: order_id
+      - name: revenue
+        description: Item prices on orders that count as revenue (fct_orders.revenue, D47).
+        agg: sum
+        expr: revenue
+      - name: revenue_order_count
+        description: Revenue orders that have at least one item. The denominator of average order value (D47).
+        agg: sum
+        expr: case when is_revenue_order and item_count > 0 then 1 else 0 end
+      - name: measurable_delivery_count
+        description: Orders whose delivery can be judged on time or late, that is, is_late is not NULL (D18, D19).
+        agg: sum
+        expr: case when is_late is not null then 1 else 0 end
+      - name: late_order_count
+        description: Orders delivered after the estimated date (D18).
+        agg: sum
+        expr: case when is_late then 1 else 0 end
+      - name: review_score
+        description: Score of the order's latest review. Orders with no review are left out of the average (D14).
+        agg: average
+        expr: review_score
+
+  # ------------------------------------------------------------------ customers: one row per person
+  - name: customers
+    description: One row per person (customer_unique_id). The base for repeat-purchase metrics.
+    model: ref('dim_customer')
+    defaults:
+      agg_time_dimension: first_order_date
+
+    entities:
+      - name: customer
+        type: primary
+        expr: customer_sk
+
+    dimensions:
+      - name: first_order_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: first_order_state
+        type: categorical
+
+    measures:
+      - name: customer_count
+        description: People, counted once each however many orders they placed.
+        agg: count
+        expr: customer_sk
+      - name: first_delivered_count
+        description: People whose first order was delivered. The only people who can be judged on coming back (D46).
+        agg: sum
+        expr: case when repeat_after_first_delivery is not null then 1 else 0 end
+      - name: returned_after_delivery_count
+        description: People who placed a later non-canceled order on or after the day their first order was delivered (D46).
+        agg: sum
+        expr: case when repeat_after_first_delivery then 1 else 0 end
+
+metrics:
+
+  # ------------------------------------------------------------------ the headline words
+  - name: orders
+    label: Orders
+    description: Number of orders, whatever their status.
+    type: simple
+    type_params:
+      measure: order_count
+
+  - name: revenue
+    label: Revenue
+    description: Item prices on orders that count as revenue (canceled and unavailable excluded). Freight is not included.
+    type: simple
+    type_params:
+      measure: revenue
+
+  - name: average_order_value
+    label: Average order value
+    description: Revenue divided by the revenue orders that have at least one item (D47).
+    type: ratio
+    type_params:
+      numerator: revenue
+      denominator: revenue_orders
+
+  - name: late_delivery_rate
+    label: Late delivery rate
+    description: Share of measurable deliveries that arrived after the estimated date (D18). Orders that were not delivered are not in the base.
+    type: ratio
+    type_params:
+      numerator: late_orders
+      denominator: measurable_deliveries
+
+  - name: average_review_score
+    label: Average review score
+    description: Mean of the latest review score per order, 1 to 5. Orders with no review are left out.
+    type: simple
+    type_params:
+      measure: review_score
+
+  - name: repeat_rate_after_first_delivery
+    label: Repeat rate after first delivery
+    description: >
+      Share of people whose first order was delivered who then placed a later non-canceled order on or after the delivery day
+      (D46). Not a six-month rate: it counts any later order, so compare cohorts with a similar follow-up window (D53).
+    type: ratio
+    type_params:
+      numerator: returned_after_delivery
+      denominator: first_delivered_customers
+
+  # ------------------------------------------------------------------ building blocks for the ratios above
+  - name: revenue_orders
+    label: Revenue orders with items
+    description: Building block for average order value.
+    type: simple
+    type_params:
+      measure: revenue_order_count
+
+  - name: late_orders
+    label: Late orders
+    description: Building block for the late delivery rate.
+    type: simple
+    type_params:
+      measure: late_order_count
+
+  - name: measurable_deliveries
+    label: Measurable deliveries
+    description: Building block for the late delivery rate.
+    type: simple
+    type_params:
+      measure: measurable_delivery_count
+
+  - name: first_delivered_customers
+    label: People with a delivered first order
+    description: Building block for the repeat rate.
+    type: simple
+    type_params:
+      measure: first_delivered_count
+
+  - name: returned_after_delivery
+    label: People who came back after first delivery
+    description: Building block for the repeat rate.
+    type: simple
+    type_params:
+      measure: returned_after_delivery_count

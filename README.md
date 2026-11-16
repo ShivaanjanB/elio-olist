@@ -119,9 +119,13 @@ the account that was already set up). Every command succeeded, `dbt build` took 
 | Marts | `MARTS` | Tables | The star schema: `fct_orders`, `fct_order_items`, `dim_customer`, `dim_product`, `dim_seller`, `dim_date`. Analysts hit these, so the join cost is paid once |
 
 Snowflake does not enforce keys, so every key is proved with a dbt test, and every mart has an enforced contract (names and types
-declared, and dbt refuses to build if they differ). 71 decisions, each with the alternatives, the reason and the evidence, are in
+declared, and dbt refuses to build if they differ). 73 decisions, each with the alternatives, the reason and the evidence, are in
 [`docs/decision_log.md`](docs/decision_log.md). The entity-relationship diagram, normalisation argument and star schema are in
 [`docs/data_model.md`](docs/data_model.md).
+
+The business words (revenue, orders, average order value, late delivery rate, average review score, repeat rate) are also defined
+once as a semantic layer in [`_marts__semantic.yml`](dbt_project/models/marts/_marts__semantic.yml) (D73). It changes no table, and
+[`docs/semantic_layer_checks.sql`](docs/semantic_layer_checks.sql) recomputes each metric with plain SQL. The app does not read it yet.
 
 ## Explore the results (optional app)
 

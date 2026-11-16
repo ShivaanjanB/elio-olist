@@ -151,9 +151,12 @@ models:
     config:
       contract:
         enforced: true
+    time_spine:
+      standard_granularity_column: date_day   # the calendar the semantic layer fills gaps from (D73)
     columns:
       - name: date_day
         data_type: date
+        granularity: day
         description: The calendar day. The key.
         data_tests:
           - unique
