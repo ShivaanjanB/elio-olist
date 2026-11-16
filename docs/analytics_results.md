@@ -1,7 +1,6 @@
 # Analytics results (Phase 6)
 
-What the five queries in [`sql/analytics_queries.sql`](../sql/analytics_queries.sql) return, how to read each, and what to be
-careful about. Every figure was recomputed from the staging views by a different route in
+What the five queries in [`sql/analytics_queries.sql`](../sql/analytics_queries.sql) return, how to read each one, and what to watch out for. Every figure was recomputed from the staging views by a different route in
 [`sql/analytics_checks.sql`](../sql/analytics_checks.sql) and agrees exactly (D55). Choices are in
 [`decision_log.md`](decision_log.md) D51 to D55; definitions are in [`data_model.md`](data_model.md) section 8.
 
@@ -22,7 +21,7 @@ Total revenue is 13,494,400.74 (items price on orders that are not canceled or u
 | 9 | auto | 586,585.73 | 4.35% | 58.81% |
 | 10 | garden_tools | 481,009.94 | 3.56% | 62.37% |
 
-Reading it: revenue is spread out. No category passes 10%, and the top 3 hold about a quarter. The shares are of all revenue,
+Revenue is spread out. No category passes 10%, and the top 3 hold about a quarter. The shares are of all revenue,
 including the `unknown` category (610 products with no category), which does not reach the top 12.
 
 ## Q2. Monthly trend (2017-01 to 2018-08)
@@ -34,7 +33,7 @@ including the `unknown` category (610 products with no category), which does not
 | 2018-01 | 7,187 | 945,456.29 | 131.55 | +27.9% |
 | 2018-08 | 6,421 | 848,860.10 | 132.20 | +3.0% |
 
-Reading it: growth came from the number of orders, which rose almost tenfold from January to November 2017, while the average
+Growth came from the number of orders, which rose almost tenfold from January to November 2017, while the average
 order value stayed between 124.76 and 152.60 in all 20 months. In 2018 orders level off between 6,145 and 7,187 a month. Five
 months were left out because the data is too thin there (D51): 2016-09, 2016-10, 2016-12, 2018-09 and 2018-10.
 
@@ -52,7 +51,7 @@ Slow orders (Q3b, Q3c). The 99th percentile of delivery time is 46 days (median 
 | Above p99 | 914 | 63.4 | 96.2% | 1.79 | 69.2% |
 | p99 or faster | 95,556 | 12.0 | 5.9% | 4.18 | 9.2% |
 
-Reading it: lateness is spread widely, not concentrated in a few bad sellers, so removing the 24 would remove only about 6.6% of
+Lateness is spread widely and isn't concentrated in a few bad sellers: removing the 24 would only take out about 6.6% of
 late orders among scored sellers. Extreme delays are strongly tied to bad reviews. 433 of the 914 slow orders (47%) were bought in
 November 2017 or February and March 2018, which suggests peaks overloading delivery, though this file does not test that.
 
@@ -82,18 +81,18 @@ order within 180 days of that delivery (D53).
 | Review 3 stars | 5,523 | 95 | 1.72% | 1.38 to 2.06 |
 | Review 4 to 5 stars | 49,381 | 912 | 1.85% | 1.73 to 1.97 |
 
-Reading it: a late first delivery goes with a lower return rate, about 0.6 points or a third lower. The intervals do not
+A late first delivery goes with a lower return rate, about 0.6 points or a third lower. The intervals do not
 overlap, and within each delivery quarter from 2017-Q2 to 2018-Q2 (each with at least 300 late people) late people return less often (gaps of -0.14
 to -0.99 points), so the gap is not an artefact of when people joined. 2016-Q4 and 2017-Q1 have too few late people to read.
 
-Size it before building on it. Only 7.1% of the cohort (4,544 people) had a late first delivery. If every one of them returned at
+It's worth sizing before building on it. Only 7.1% of the cohort (4,544 people) had a late first delivery. If every one of them returned at
 the on-time rate, about 27 more people (4,544 x 0.60 points) would come back within 180 days in a cohort of 63,874. The overall
-rate is 1.77%: nearly everyone who buys once does not buy again within six months, whether the delivery was on time or not.
+rate is 1.77%: nearly everyone who buys once doesn't buy again within six months, whether the delivery was on time or not.
 This is an association, not proof that lateness causes it, because late deliveries are concentrated in other states (Q4) whose
-customers may differ. Phase 7 should size the opportunity with these numbers before choosing the campaign.
+customers may differ. The next step (Phase 7) is to size the opportunity with these numbers before choosing a campaign.
 
-## What these queries do not say
+## What these queries can't tell you
 
-- Nothing here shows cause. Late delivery, low reviews and lower repeat rates move together; only a test with a holdout group could show that fixing one changes the other.
-- The seller flag uses a cut-off of 2 and a minimum of 30 orders (D52); a different choice flags different sellers.
+- Nothing here shows cause. Late delivery, low reviews and lower repeat rates move together, but only a test with a holdout group could show that fixing one changes the other.
+- The seller flag uses a cut-off of 2 and a minimum of 30 orders (D52), and a different choice would flag different sellers.
 - The monthly trend stops at 2018-08 because the data does (D51).

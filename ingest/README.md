@@ -3,25 +3,25 @@
 ## One-off manual steps
 
 ### 1. Generate a key pair for the service user
-The pipeline signs in as `ELIO_SVC`, a Snowflake service user that has no password and authenticates only with an RSA key. The private key stays outside the repo.
+The pipeline signs in as `ELIO_SVC`, a Snowflake service user with no password. It only authenticates with an RSA key, and the private key stays outside the repo.
 
-From the repo root, in PowerShell (needs `openssl`, which ships with Git for Windows):
+From the repo root, in PowerShell (it needs `openssl`, which comes with Git for Windows):
 
 ```powershell
 .\scripts\new_keypair.ps1
 ```
 
-The script writes `rsa_key.p8` (private) and `rsa_key.pub` (public) to `~\.snowflake\elio\`, restricts the private key to your Windows account, then prints the public key on one line (to paste into `00_setup_account.sql`) and its SHA-256 fingerprint (to compare with Snowflake's `RSA_PUBLIC_KEY_FP`). It refuses to overwrite an existing key unless you pass `-Force`.
+The script writes `rsa_key.p8` (private) and `rsa_key.pub` (public) to `~\.snowflake\elio\` and locks the private key down to your Windows account. It then prints the public key on one line (paste that into `00_setup_account.sql`) and its SHA-256 fingerprint (compare it with Snowflake's `RSA_PUBLIC_KEY_FP`). It won't overwrite an existing key unless you pass `-Force`.
 
-The private key is unencrypted on disk, which is acceptable for a trial account; in production I would encrypt it or keep it in a secrets manager.
+The private key isn't encrypted on disk. That's fine for a trial account. In production I'd encrypt it or keep it in a secrets manager.
 
 ### 2. Run the account setup
 1. Open a Snowsight worksheet and switch the role to `ACCOUNTADMIN`.
 2. Paste in [`00_setup_account.sql`](00_setup_account.sql).
 3. Replace `<PASTE_ONE_LINE_PUBLIC_KEY_HERE>` with the one-line key.
-4. Run all statements.
+4. Run all the statements.
 
-The final `DESC USER ELIO_SVC` should show `RSA_PUBLIC_KEY_FP = SHA256:…`.
+The last one, `DESC USER ELIO_SVC`, should show `RSA_PUBLIC_KEY_FP = SHA256:…`.
 
 ### 3. Point local tools at the account
 Copy `.env.example` to `.env` and fill it in. Then load it into your shell:
@@ -29,7 +29,7 @@ Copy `.env.example` to `.env` and fill it in. Then load it into your shell:
 - macOS/Linux: `set -a; . ./.env; set +a`
 
 ### 4. Download the data
-Download the Olist dataset from Kaggle and unzip the nine CSVs into `data/raw/`. The folder is git-ignored. Geolocation is downloaded but not loaded.
+Download the Olist dataset from Kaggle and unzip the nine CSVs into `data/raw/`. The folder is git-ignored. Geolocation gets downloaded but not loaded.
 
 ## Run order
 From the repo root in PowerShell, after `. .\scripts\load_env.ps1`. `py` below means `.\.venv\Scripts\python.exe`. Every Snowflake step runs as the service user `ELIO_SVC` with role `ELIO_TRANSFORMER`.
@@ -38,16 +38,16 @@ From the repo root in PowerShell, after `. .\scripts\load_env.ps1`. `py` below m
 |---|---|---|
 | 1 | `py ingest\run_sql.py ingest\01_file_format.sql` | Creates the file format `RAW.OLIST_CSV` |
 | 2 | `py ingest\run_sql.py ingest\02_stage.sql` | Creates the internal stage `RAW.OLIST_STAGE` (with a directory table) |
-| 3 | `py ingest\02_upload_files.py` | `PUT`s the eight CSVs to the stage (`OVERWRITE=FALSE`: safe to repeat) |
-| 4 | `py ingest\run_sql.py ingest\02_check_staged_files.sql` | Reads the staged files through the format: record counts, line endings, accents, byte-order mark |
+| 3 | `py ingest\02_upload_files.py` | `PUT`s the eight CSVs to the stage (`OVERWRITE=FALSE`, so it's safe to repeat) |
+| 4 | `py ingest\run_sql.py ingest\02_check_staged_files.sql` | Reads the staged files through the format and reports record counts, line endings, accents and the byte-order mark |
 | 5 | `py ingest\run_sql.py ingest\03_raw_tables.sql` | Creates the eight RAW tables (`IF NOT EXISTS`) |
 | 6 | `py ingest\03_check_raw_tables.py` | Checks each table's columns against its CSV header |
-| 7 | `py ingest\04_dry_run.py` | Dry run of every file with `VALIDATION_MODE`. Must show 0 error rows. |
+| 7 | `py ingest\04_dry_run.py` | Dry run of every file with `VALIDATION_MODE`. It must show 0 error rows |
 | 8 | `py ingest\run_sql.py ingest\04_load.sql` | Loads the tables, one `COPY INTO` each, with `ON_ERROR = ABORT_STATEMENT` |
-| 9 | `py ingest\05_reconcile.py` | Four-way row-count reconciliation. Must show OK for every table. |
+| 9 | `py ingest\05_reconcile.py` | Four-way row-count reconciliation. It must show OK for every table |
 | 10 | `py ingest\run_sql.py ingest\05_check_loaded_data.sql` | Checks the loaded data: blanks, zip prefixes, accents, line endings, profile facts |
 
-**Rebuild RAW from the staged files:** run `ingest\truncate_raw_tables.sql` through `run_sql.py`, then steps 7 to 9. Running step 8 again *without* truncating loads nothing, because Snowflake remembers which files it loaded.
+**Rebuilding RAW from the staged files:** run `ingest\truncate_raw_tables.sql` through `run_sql.py`, then steps 7 to 9. Running step 8 again *without* truncating loads nothing, because Snowflake remembers which files it already loaded.
 
 Findings, decisions and assumptions are in [LOAD_NOTES.md](LOAD_NOTES.md).
 
@@ -65,8 +65,8 @@ Findings, decisions and assumptions are in [LOAD_NOTES.md](LOAD_NOTES.md).
 
 Install with `pip install -r requirements.txt` in a fresh virtual environment.
 
-## Pre-load profile of the files
-Before loading anything, I profiled the raw CSVs with `python ingest/profile_csvs.py data/raw` (stdlib only):
+## What the files look like before loading
+Before loading anything I profiled the raw CSVs with `python ingest/profile_csvs.py data/raw` (standard library only):
 
 | File | Records | What stands out |
 |---|---:|---|
@@ -80,10 +80,10 @@ Before loading anything, I profiled the raw CSVs with `python ingest/profile_csv
 | `product_category_name_translation.csv` | 71 | Starts with a UTF-8 byte-order mark; CRLF line endings |
 | `olist_geolocation_dataset.csv` | 1,000,163 | Only 19,015 zip prefixes, many rows each; **not loaded** (see below) |
 
-Across all files:
-- **Encoding:** every file is valid UTF-8. Accented Portuguese text appears in reviews, geolocation, sellers and the category translation; customer city names are ASCII-only.
-- **Zip prefixes:** always 5 characters with leading zeros (e.g. `01151`), so they must stay text.
-- **Quoting:** inconsistent; some IDs are quoted and some aren't, even within one row.
+Across all the files:
+- **Encoding:** every file is valid UTF-8. Accented Portuguese text shows up in reviews, geolocation, sellers and the category translation. Customer city names are ASCII-only.
+- **Zip prefixes:** always 5 characters with leading zeros (for example `01151`), so they have to stay text.
+- **Quoting:** inconsistent. Some IDs are quoted and some aren't, even within one row.
 - **Timestamps:** `YYYY-MM-DD HH24:MI:SS`, no time zone.
 
-**Why geolocation is skipped:** the analysis works at state level, which `customers` and `sellers` already carry. Geolocation would only add map coordinates, and using it would first mean collapsing a million rows to one per zip prefix.
+**Why geolocation is skipped:** the analysis works at state level, and `customers` and `sellers` already carry the state. Geolocation would only add map coordinates, and using it would mean first collapsing a million rows to one per zip prefix.

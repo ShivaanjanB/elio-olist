@@ -1,25 +1,25 @@
 # Load notes: Olist CSVs into Snowflake `RAW`
 
-Run on 2026-11-13. Everything in this folder was run in the order given in [README.md](README.md#run-order); this file records **what I decided, what I found and what I assumed**.
+Run on 2026-11-13. Everything in this folder was run in the order given in [README.md](README.md#run-order). This file is where I wrote down **what I decided, what I found and what I assumed**.
 
 ## Summary
 
-- Eight of the nine CSVs are loaded as-is into `ELIO_OLIST.RAW`, one table each. Geolocation is deliberately not loaded.
-- Every table has the CSV's columns, in the CSV's order, all `VARCHAR`, plus three label columns: `_source_file`, `_source_row`, `_loaded_at`.
-- **No rows failed to load, and none were dropped.** For every table, four independent counts agree: records in the CSV file, records readable from the staged file, rows `COPY` loaded, and rows in the table.
+- Eight of the nine CSVs are loaded as they are into `ELIO_OLIST.RAW`, one table each. Geolocation is deliberately left out.
+- Every table has the CSV's columns in the CSV's order, all `VARCHAR`, plus three label columns: `_source_file`, `_source_row`, `_loaded_at`.
+- **No rows failed to load and none were dropped.** For every table, four independent counts agree: records in the CSV file, records readable from the staged file, rows `COPY` loaded, and rows in the table.
 - Bad-row policy: `ON_ERROR = ABORT_STATEMENT`, backed by a dry run (`VALIDATION_MODE`) before every load.
 
 ## Decisions
 
 | Decision | Choice | Why |
 |---|---|---|
-| Landing area | A named internal stage, `RAW.OLIST_STAGE`, with the file format attached and a directory table | Created by SQL in the repo, owned by the pipeline role. The directory table lets Snowsight list the files. |
-| Upload | A Python script using `PUT` (`02_upload_files.py`) | `PUT` cannot run in a Snowsight worksheet. A script is repeatable and builds the path from the repo folder. `OVERWRITE=FALSE`: running it twice duplicates nothing. |
-| Reading rules | One file format, `RAW.OLIST_CSV` (see below) | All files follow the same conventions. Each setting comes from profiling the files. |
-| Column types | Every source column is `VARCHAR` | RAW is as received: no row can be rejected for a type reason, no information is lost (zip prefixes keep leading zeros). Typing belongs in dbt staging, where it is tested. |
-| Provenance | `_source_file` (`METADATA$FILENAME`), `_source_row` (`METADATA$FILE_ROW_NUMBER`), `_loaded_at` (`METADATA$START_SCAN_TIME`) | Any value can be traced to a file and a record. Snowflake recommends `START_SCAN_TIME` over a `CURRENT_TIMESTAMP()` default for load time. |
-| Constraints | None | Snowflake does not enforce keys. RAW accepts duplicates and blanks as they arrive; staging tests them. |
-| Keep the staged files | Yes (no `PURGE`) | They are the evidence of exactly what was loaded, and the rebuild path reloads from them. |
+| Landing area | A named internal stage, `RAW.OLIST_STAGE`, with the file format attached and a directory table | Created by SQL in the repo and owned by the pipeline role. The directory table lets Snowsight list the files. |
+| Upload | A Python script using `PUT` (`02_upload_files.py`) | `PUT` can't run in a Snowsight worksheet. A script is repeatable and builds the path from the repo folder. `OVERWRITE=FALSE`, so running it twice duplicates nothing. |
+| Reading rules | One file format, `RAW.OLIST_CSV` (see below) | All the files follow the same conventions. Each setting comes from profiling the files. |
+| Column types | Every source column is `VARCHAR` | RAW stays as received: no row can be rejected for a type reason and no information is lost (zip prefixes keep their leading zeros). Typing belongs in dbt staging, where it's tested. |
+| Provenance | `_source_file` (`METADATA$FILENAME`), `_source_row` (`METADATA$FILE_ROW_NUMBER`), `_loaded_at` (`METADATA$START_SCAN_TIME`) | Any value can be traced back to a file and a record. Snowflake recommends `START_SCAN_TIME` over a `CURRENT_TIMESTAMP()` default for load time. |
+| Constraints | None | Snowflake doesn't enforce keys. RAW takes duplicates and blanks as they arrive, and staging tests them. |
+| Keep the staged files | Yes (no `PURGE`) | They're the evidence of exactly what was loaded, and the rebuild path reloads from them. |
 | **Bad rows** | **`ON_ERROR = ABORT_STATEMENT`** | See below. |
 | Geolocation | Not loaded | The analysis works at state level, which `customers` and `sellers` already carry. |
 
@@ -37,15 +37,15 @@ Run on 2026-11-13. Everything in this folder was run in the order given in [READ
 
 ### How bad rows are handled
 
-**`ON_ERROR = ABORT_STATEMENT`.** The rule is that no bad row is silently dropped.
+**`ON_ERROR = ABORT_STATEMENT`.** The rule is that no bad row gets silently dropped.
 
-1. Every source column is text, so type errors cannot happen. A row that fails would mean my reading rules are wrong, which must be fixed, not skipped.
-2. It is all-or-nothing per table. One `COPY` loads one file into one table, so a failure leaves the table untouched and a re-run is clean.
-3. `CONTINUE` would let counts drift silently, and `SKIP_FILE` would drop a whole file silently.
+1. Every source column is text, so type errors can't happen. A row that fails would mean my reading rules are wrong, and that needs fixing, not skipping.
+2. It's all-or-nothing per table. One `COPY` loads one file into one table, so a failure leaves the table untouched and a re-run is clean.
+3. `CONTINUE` would let the counts drift without anyone noticing, and `SKIP_FILE` would drop a whole file without anyone noticing.
 
-**The load cannot check the number of fields per row, so a dry run does.** To record the file name and row number, the load has to use the SELECT form of `COPY INTO`, and in that form Snowflake ignores `ERROR_ON_COLUMN_COUNT_MISMATCH`. I confirmed this on the real orders file: asking for a 9th field in an 8-field file raises no error and returns NULL. `04_dry_run.py` therefore runs every file through `VALIDATION_MODE = RETURN_ERRORS` into a temporary table that mirrors the CSV header, which does check the field count. I also confirmed it catches the problem: into a 9-column table, it reports "Number of columns in file (8) does not match that of the corresponding table (9)".
+**The load can't check the number of fields per row, so a dry run does.** To record the file name and row number, the load has to use the SELECT form of `COPY INTO`, and in that form Snowflake ignores `ERROR_ON_COLUMN_COUNT_MISMATCH`. I checked this on the real orders file: asking for a 9th field in an 8-field file raises no error and just returns NULL. So `04_dry_run.py` runs every file through `VALIDATION_MODE = RETURN_ERRORS` into a temporary table that mirrors the CSV header, which does check the field count. I also confirmed it catches the problem: into a 9-column table, it reports "Number of columns in file (8) does not match that of the corresponding table (9)".
 
-**`VALIDATE()` is not used.** It does not work with a transforming copy, and it returns nothing for `ABORT_STATEMENT` loads.
+**`VALIDATE()` isn't used.** It doesn't work with a transforming copy, and it returns nothing for `ABORT_STATEMENT` loads.
 
 ## What I found
 
@@ -79,7 +79,7 @@ Run on 2026-11-13. Everything in this folder was run in the order given in [READ
 | `SELLERS` | 3,095 | 3,095 | 3,095 | 3,095 | OK |
 | `PRODUCT_CATEGORY_NAME_TRANSLATION` | 71 | 71 | 71 | 71 | OK |
 
-The CSV count comes from Python's `csv` module, independent of Snowflake. The reviews file has 104,720 physical lines but 99,224 records, because 3,852 comments contain line breaks inside quotes. `_source_row` for reviews runs 1 to 99,224: it counts records, not lines.
+The CSV count comes from Python's `csv` module, which doesn't depend on Snowflake. The reviews file has 104,720 physical lines but 99,224 records, because 3,852 comments contain line breaks inside quotes. `_source_row` for reviews runs 1 to 99,224: it counts records, not lines.
 
 ### Checks on the loaded data (`05_check_loaded_data.sql`)
 
@@ -105,26 +105,26 @@ The CSV count comes from Python's `csv` module, independent of Snowflake. The re
 
 ### Rebuild path (tested)
 
-`truncate_raw_tables.sql` empties the tables, which also clears Snowflake's record of which files were loaded ("no history"). Re-running `04_load.sql` then loads every file again with the same counts, and `05_reconcile.py` is green again. Running `04_load.sql` a **second time without truncating** loads nothing (`Copy executed with 0 files processed`), so it cannot duplicate rows.
+`truncate_raw_tables.sql` empties the tables, which also clears Snowflake's record of which files were loaded ("no history"). Re-running `04_load.sql` then loads every file again with the same counts, and `05_reconcile.py` goes green again. Running `04_load.sql` a **second time without truncating** loads nothing (`Copy executed with 0 files processed`), so it can't duplicate rows.
 
 ## Assumptions
 
-- **Types:** none applied in RAW. Timestamps are text in the form `YYYY-MM-DD HH24:MI:SS` with no time zone; money and counts are text. Typing is a staging decision.
-- **Time zones:** the source timestamps carry no time zone. I assume they are Brazil local time, which I have not verified. `_loaded_at` is a real timestamp and shows in the Snowflake account's default zone (America/Los_Angeles).
-- **Encoding:** UTF-8 throughout, verified on the loaded data (accents intact, byte-order mark skipped).
+- **Types:** none applied in RAW. Timestamps are text in the form `YYYY-MM-DD HH24:MI:SS` with no time zone, and money and counts are text. Typing is a staging job.
+- **Time zones:** the source timestamps carry no time zone. I'm assuming Brazil local time, which I haven't verified. `_loaded_at` is a real timestamp and shows in the Snowflake account's default zone (America/Los_Angeles).
+- **Encoding:** UTF-8 throughout, checked on the loaded data (accents intact, byte-order mark skipped).
 - **Malformed rows:** none found. The dry run reported 0 error rows, and `COPY` reported 0 errors.
-- **Blanks:** a blank field is NULL. No empty strings are present in RAW. I could not tell from the loaded data whether the source used any explicitly empty quoted `""` values, because none arrived as empty text.
+- **Blanks:** a blank field is NULL, and there are no empty strings in RAW. I couldn't tell from the loaded data whether the source used any explicitly empty quoted `""` values, because none arrived as empty text.
 - **Keys:** not enforced in RAW. Known duplicates (for example repeated `review_id`s) are kept and handled in staging.
 - **Customers:** `customer_id` is new on every order, so a person is identified by `customer_unique_id`.
 
-## Limits of this approach, and what I would do in production
+## Limits of this approach, and what I'd do in production
 
-- This is a full reload of static files. For recurring feeds I would load incrementally (new files only, keyed on load metadata) with Snowpipe or a scheduled task.
-- `COPY_HISTORY` keeps 14 days. I would persist each load's counts to a log table for a lasting audit trail.
-- I would alert on any non-zero `ERRORS_SEEN` or on a row count that moves unexpectedly between loads.
-- I would watch for schema drift (a changed header) before loading, for example by comparing the header with the table.
-- The private key is unencrypted on disk, which is acceptable for a trial account; in production it would be in a secrets manager.
+- This is a full reload of static files. For recurring feeds I'd load incrementally (new files only, keyed on load metadata) with Snowpipe or a scheduled task.
+- `COPY_HISTORY` only keeps 14 days. I'd write each load's counts to a log table so there's a lasting audit trail.
+- I'd alert on any non-zero `ERRORS_SEEN`, or on a row count that moves unexpectedly between loads.
+- I'd check for schema drift (a changed header) before loading, for example by comparing the header with the table.
+- The private key is unencrypted on disk. That's fine for a trial account. In production it would live in a secrets manager.
 
 ## Manual steps and versions
 
-See [README.md](README.md): the one-off manual steps (key pair, account setup in Snowsight, `.env`, downloading the data) and the pinned versions.
+See [README.md](README.md) for the one-off manual steps (key pair, account setup in Snowsight, `.env`, downloading the data) and the pinned versions.

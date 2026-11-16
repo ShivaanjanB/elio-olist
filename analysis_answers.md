@@ -1,23 +1,23 @@
 # Analysis and recommendation
 
 Every number below comes from a query in [`sql/insight_queries.sql`](sql/insight_queries.sql) or
-[`sql/analytics_queries.sql`](sql/analytics_queries.sql), and each was recomputed from the staging views by a different route in
-[`sql/insight_checks.sql`](sql/insight_checks.sql) and [`sql/analytics_checks.sql`](sql/analytics_checks.sql). The query that
-produces each figure is named in brackets, like [I1b]. Decisions are in [`docs/decision_log.md`](docs/decision_log.md) D56 to D60.
+[`sql/analytics_queries.sql`](sql/analytics_queries.sql), and I recomputed each one from the staging views by a different route in
+[`sql/insight_checks.sql`](sql/insight_checks.sql) and [`sql/analytics_checks.sql`](sql/analytics_checks.sql). The query behind
+each figure is named in brackets, like [I1b]. The decisions are in [`docs/decision_log.md`](docs/decision_log.md), D56 to D60.
 
-**The short version.** The business problem is repeat purchase: 96.9% of people buy once. Late delivery wrecks reviews and goes
-with a lower repeat rate, but the group it affects is small, so the recommendation is a capped, randomised test that will show
-what a voucher actually does, not a promise of a revenue jump.
+**The short version.** The problem is repeat purchase: 96.9% of people buy once. Late delivery wrecks reviews and goes with a lower
+repeat rate, but the group it hits is small. So I'm recommending a capped, randomised test that shows what a voucher actually does,
+rather than promising a jump in revenue.
 
 ## B1. Commercial insights
 
-Two insights, each with the finding, the method behind it and why a stakeholder should care.
+Two insights. Each one has the finding, how I got it, and why someone running the business should care.
 
 ### Insight 1: late delivery against review score
 
-**Method.** For delivered orders that have a review, compare the review score of orders that arrived after the promised date with
-those that did not, then split by how many days late. Review scores are a 1 to 5 rating, so a distribution and an average say it
-plainly, and the comparison needs no model. Late is measured as dates, because the promised date is always a date without a time
+**Method.** For delivered orders that have a review, I compared the review score of orders that arrived after the promised date with
+those that didn't, then split by how many days late. Review scores are a 1 to 5 rating, so a distribution and an average say it
+plainly, and the comparison needs no model. Late is measured in dates, because the promised date is always a date with no time
 (decision D18).
 
 **Result** [I1a, I1b].
@@ -31,27 +31,27 @@ plainly, and the comparison needs no model. Late is measured as dates, because t
 | Late 8 to 14 days | 1,446 | 1.67 | 80.2% | 6.8% |
 | Late 15 or more days | 1,335 | 1.72 | 78.4% | 7.2% |
 
-**What it says.** Missing the promised date costs about a star even when it is only one to three days, and by a week the average
-is below 2. Orders that arrive early, even by more than a week, score about the same as those on the day (4.19 to 4.32), so the damage
-comes from a broken promise, not from slowness itself. The 914 slowest orders (over 46 days) average 1.79 stars [Q3c].
+**What it says.** Missing the promised date costs about a star, even when it's only one to three days, and by a week the average
+is below 2. Orders that arrive early, even by more than a week, score about the same as ones that arrive on the day (4.19 to 4.32), so
+the damage comes from a broken promise, not from slowness itself. The 914 slowest orders (over 46 days) average 1.79 stars [Q3c].
 
-**Is it just geography?** Late rates are highest in far-away states, so customers there might simply rate lower. They do not: inside
+**Is it just geography?** Late rates are highest in far-away states, so customers there might simply rate lower. They don't: inside
 each of the 14 states with at least 100 late reviewed orders, late orders score 1.6 to 2.3 stars lower than on-time ones [I1c], and
 with the state mix held fixed the gap is 1.92 stars (4.29 against 2.37) [I1d].
 
-**Why a stakeholder should care.** A broken delivery promise is the one driver of bad reviews that operations can control, and
-reviews shape what the next buyer sees on the marketplace. It also shows the promise matters more than the speed: arriving
-early earns nothing extra, and arriving late costs a star even by a day or two.
+**Why it matters.** A broken delivery promise is the one driver of bad reviews that operations can control, and reviews shape what
+the next buyer sees on the marketplace. It also shows that the promise matters more than the speed: arriving early earns nothing
+extra, and arriving late costs a star even by a day or two.
 
-**Why not RFM.** 93,099 of 96,096 people (96.88%) have exactly one order [I3c], so the frequency part of RFM has almost no
-spread and the model would collapse to recency and spend. The question here is how one experience relates to a second purchase, so
-the method compares groups defined by that experience.
+**Why not RFM.** 93,099 of 96,096 people (96.88%) have exactly one order [I3c], so the frequency part of RFM barely varies and the
+model would collapse to recency and spend. The question here is how one experience relates to a second purchase, so I compared
+groups defined by that experience instead.
 
 ### Insight 2: repeat purchase against the first-order experience
 
-**Method.** Group customers by `customer_unique_id` (the person, since `customer_id` changes on every order). Take people whose
+**Method.** I grouped customers by `customer_unique_id` (the person, since `customer_id` changes on every order). I took people whose
 first order was delivered and who have at least 180 days of data after that delivery, so everyone had the same time to come
-back (63,874 people). Count them as returning if they placed a later, non-canceled order on or after the delivery day. Compare
+back (63,874 people). They count as returning if they placed a later, non-canceled order on or after the delivery day. Then I compared
 the rate within 56, 90 and 180 days by the first-order experience (decisions D46, D53).
 
 **Result** [I2].
@@ -65,22 +65,22 @@ the rate within 56, 90 and 180 days by the first-order experience (decisions D46
 | All first-time buyers | 63,874 | 0.87% | 1.15% | 1.77% |
 
 **What it says.** People whose first order went badly come back about a quarter to a third less often, at every window. The
-difference in the 180-day rate (1.21% against 1.81% for on-time) has 95% intervals that do not overlap [Q5], and it appears inside
-each delivery quarter from 2017-Q2 to 2018-Q2 [Q5b], so it is not an artefact of when people joined. The larger fact is the
-baseline: even people whose first order went fine return only 1.84% of the time within six months.
+difference in the 180-day rate (1.21% against 1.81% for on-time) has 95% intervals that don't overlap [Q5], and it shows up inside
+each delivery quarter from 2017-Q2 to 2018-Q2 [Q5b], so it isn't just down to when people joined. The bigger fact is the
+baseline: even people whose first order went fine only return 1.84% of the time within six months.
 
-**Why a stakeholder should care.** Revenue is customers times orders per customer times order value, and almost all the
-weakness is in orders per customer: only 1.8% of first-time buyers return within six months. A group that returns even less
-after a bad experience is a place to test a fix.
+**Why it matters.** Revenue is customers times orders per customer times order value, and nearly all the weakness is in orders
+per customer: only 1.8% of first-time buyers return within six months. A group that returns even less after a bad experience is a
+good place to test a fix.
 
 **This is an association, not proof of cause.** Late orders are concentrated in states whose customers may differ in other ways, and
-a bad review could reflect a bad product as much as a bad delivery. Only a randomised test can say whether fixing the experience
+a bad review could be about a bad product as much as a bad delivery. Only a randomised test can say whether fixing the experience
 changes what people do.
 
 ## B2. The recommendation: a service-recovery test
 
 **Do one thing: test an apology and a capped free-shipping voucher on the customers who had a bad first order, with a random
-holdout.** The aim is to find out what a voucher does to repeat purchase, at a cost that cannot hurt, before anyone spends on all
+holdout.** The aim is to find out what a voucher does to repeat purchase, at a cost that can't hurt, before anyone spends on all
 the first-time buyers.
 
 | | |
@@ -92,9 +92,9 @@ the first-time buyers.
 | **Early signal** | Share who redeem the voucher by week 2. |
 | **Guardrail** | Voucher cost per extra order. Stop the test if it exceeds the margin earned on an order (see below). |
 
-**What it could be worth** [I3]. Only the first four rows of inputs are measured. The three uplifts are assumptions, because nothing
-in this data says what a voucher does. The low case is an apology that merely restores normal behaviour (the 0.26-point gap to
-everyone else at 8 weeks).
+**What it could be worth** [I3]. Four inputs are measured (they're listed under the table). The three uplifts are assumptions,
+because nothing in this data says what a voucher does. The low case is an apology that just restores normal behaviour (the
+0.26-point gap to everyone else at 8 weeks).
 
 | Scenario | Assumed uplift in the 8-week repeat rate (points) | Extra orders a year | Extra item revenue | Voucher cost | Revenue less voucher cost | Voucher cost per extra order | Margin needed to break even | Test spend at risk |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -102,48 +102,48 @@ everyone else at 8 weeks).
 | Base | 0.50 | 60 | R$7,407 | R$1,891 | R$5,516 | R$32 | 26% | R$945 |
 | High | 1.00 | 119 | R$14,814 | R$2,714 | R$12,100 | R$23 | 18% | R$1,357 |
 
-Measured inputs: 11,937 people a year, 0.65% of them reorder within 8 weeks anyway, a later order averages R$124.10 of items, and
-a voucher costs R$13.78. Revenue is item revenue, not profit: the dataset has no margin. The last two columns matter more than the
-money: the voucher only makes a profit if the margin on an extra order exceeds 18% to 40% of its item revenue, and everyone in the
-segment who would have ordered anyway also uses the voucher. Test spend at risk is the treated half's voucher cost if the whole
-campaign ran at that scenario; vouchers cost money only when used.
+The measured inputs are 11,937 people a year, 0.65% of whom reorder within 8 weeks anyway, a later order averaging R$124.10 of
+items, and a voucher costing R$13.78. Revenue here is item revenue, not profit, because the dataset has no margin. The last two
+columns matter more than the money: the voucher only turns a profit if the margin on an extra order is above 18% to 40% of its item
+revenue, and anyone in the segment who would have ordered anyway will use the voucher too. "Test spend at risk" is the treated
+half's voucher cost if the whole campaign ran at that scenario, and vouchers only cost money when they're used.
 
-**Be honest about the size.** The prize is small: R$2k to R$12k a year against annual item revenue of roughly R$10 million [Q2]. This is a
-learning test, not a growth engine. If the voucher works for this segment, the same design can be tried on all 72,907 first-time
-buyers a year, six times as many people, where the base rate is similar and nothing says the effect would be the same. That
-decision should wait for the result.
+**How big is this, really?** The prize is small: R$2k to R$12k a year against annual item revenue of roughly R$10 million [Q2]. This
+is a learning test, not a growth engine. If the voucher works for this segment, the same design can be tried on all 72,907
+first-time buyers a year, six times as many people, where the base rate is similar and nothing says the effect would be the same.
+That decision should wait for the result.
 
-**Sample size, with no false precision** [I3, I3d]. With a base rate of 0.65% you need thousands of people per group. A year of
-enrolment gives 5,969 per group, enough to detect an uplift of about **0.49 points** (the base case needs 5,593 per group; the low
-case needs 19,294, so it cannot be seen). Six months detects 0.73 points and three months 1.12. If the true effect is smaller than
-that, the test will not find it and the result should be read as "no effect larger than this".
+**Sample size.** [I3, I3d] With a base rate of 0.65% you need thousands of people per group. A year of enrolment gives 5,969 per
+group, which is enough to detect an uplift of about **0.49 points** (the base case needs 5,593 per group, and the low case needs
+19,294, so it can't be seen). Six months detects 0.73 points and three months 1.12. If the true effect is smaller than that, the
+test won't find it, and the result should be read as "no effect larger than this".
 
 **Decision rule.** Scale the voucher only if the 8-week uplift is real (the interval excludes zero) and the voucher cost per extra
-order is below the margin earned on an order. Finance supplies the margin, which the data does not have.
+order is below the margin earned on an order. Finance would supply the margin, because the data doesn't have it.
 
 **Fallback.** If the test shows no effect, the cheaper lever is the delivery promise. A one to three day slip costs a full
 star (Insight 1), and the states with the highest late rates are AL (21.4%), MA (17.4%) and SE (15.2%) [Q4]. Resetting estimated
-delivery dates or seller service levels there needs no voucher. This file does not size it, because the data cannot say what a
+delivery dates or seller service levels there needs no voucher. I haven't sized it here, because the data can't say what a
 longer promise does to purchases.
 
 ## B3. Assumptions, caveats and data quality
 
 ### Assumptions and caveats
 
-- **Association, not cause** for both insights; only the test can show cause.
-- **Margin is unknown.** Every money figure is item revenue before costs, and the voucher break-even depends on a margin the data lacks.
-- **The three uplifts are assumptions.** The data measures the base rate, the segment size, the order value and the voucher cost; it cannot measure a response to a voucher it has never seen.
-- **Small effects, small segment.** The 8-week gaps are a quarter to a third of a percentage point, which only large groups can show reliably; that is why the test is sized by the smallest effect it can see.
+- **Association, not cause** for both insights. Only the test can show cause.
+- **Margin is unknown.** Every money figure is item revenue before costs, and the voucher break-even depends on a margin the data doesn't have.
+- **The three uplifts are assumptions.** The data measures the base rate, the segment size, the order value and the voucher cost. It can't measure a response to a voucher it has never seen.
+- **Small effects, small segment.** The 8-week gaps are a quarter to a third of a percentage point, which only large groups can show reliably. That's why the test is sized by the smallest effect it can see.
 - **The "within 180 days" windows exclude recent buyers.** People delivered after 2018-04-20 are left out so everyone had the same time (D53).
-- **Old data, one marketplace.** The orders run from 2016 to 2018 and were sold through Olist; rates today may differ.
-- **Late is judged against Olist's own promised dates**, which are generous in some states (AM and RO have low late rates despite long deliveries), so late is not the same as slow.
+- **Old data, one marketplace.** The orders run from 2016 to 2018 and were sold through Olist, so rates today may differ.
+- **Late is judged against Olist's own promised dates,** which are generous in some states (AM and RO have low late rates despite long deliveries), so late isn't the same as slow.
 - **Reviews are voluntary.** 98,673 of 99,441 orders have one, so selection is small, but angry and delighted customers are more likely to write.
-- **No time zone** in the source timestamps (D09), which can move an order by a day around midnight; delivery and lateness are measured in whole days so the effect is small.
-- **Customers whose first order was canceled** are not in the repeat analysis (they have no delivery to react to); there are 1,153 of them (D39).
+- **No time zone** in the source timestamps (D09), which can move an order by a day around midnight. Delivery and lateness are measured in whole days, so the effect is small.
+- **Customers whose first order was canceled** aren't in the repeat analysis, because they have no delivery to react to. There are 1,153 of them (D39).
 
 ### Top 3 production data checks
 
-Mapped to the data-quality dimensions they protect, with what exists today.
+What I'd check in production, which data-quality dimension each one protects, and where each stands today.
 
 | # | Check | Protects | Status |
 |---|---|---|---|
@@ -180,8 +180,8 @@ it: a voucher fits a delivery complaint, not a damaged or wrong item.
 | **Main risk** | Wrong labels on slang and misspellings; personal details in free text (names, phone numbers) leaving the account; and cost, because about 41,000 comments would be classified. |
 | **Mitigation** | Run it inside Snowflake with a Cortex classification function (such as `AI_CLASSIFY`) so the text stays in the account. Hand-label 100 to 200 comments first and report how often the model agrees before anyone relies on it. Try 20 rows to see the cost, and keep the account's 20-credit monthly cap in force. Use the result only as counts by reason, never to message a customer. |
 
-**Status: proposed, not run.** Whether Cortex is available in this account's region has not been checked, and a half-tested call
-should not be presented as working. The other options were set aside for the same kind of reason: plain-English questions of the
+**Status: proposed, not run.** I haven't checked whether Cortex is available in this account's region, and a half-tested call
+shouldn't be presented as working. I set the other options aside for the same kind of reason: plain-English questions of the
 marts duplicate the five queries and risk wrong joins on money figures, a model-drafted memo would put model-written numbers beside
 the 200-word memo, and model-written apology messages would change the voucher treatment that the randomised test relies on.
 
