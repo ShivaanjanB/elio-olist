@@ -256,3 +256,43 @@ UNION ALL
 SELECT 'C8 average freight on a later order', m.avg_freight, s.avg_freight, m.avg_freight = s.avg_freight FROM mart_value AS m CROSS JOIN staged_value AS s
 UNION ALL
 SELECT 'C8 average voucher cost (capped at 15)', m.avg_voucher_cost, s.avg_voucher_cost, m.avg_voucher_cost = s.avg_voucher_cost FROM mart_value AS m CROSS JOIN staged_value AS s;
+
+
+-- C9. When late reviews were answered (I1e), rebuilt from staging only: late by date, latest review per order.
+WITH latest_review AS (
+    SELECT order_id, review_score, review_answer_timestamp
+    FROM ELIO_OLIST.STAGING.STG_OLIST__ORDER_REVIEWS
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC, review_id) = 1
+),
+
+staged AS (
+    SELECT
+        COUNT_IF(CAST(r.review_answer_timestamp AS DATE) <  CAST(o.order_delivered_customer_date AS DATE))                 AS before_n,
+        SUM(IFF(CAST(r.review_answer_timestamp AS DATE) <  CAST(o.order_delivered_customer_date AS DATE), r.review_score, 0)) AS before_score,
+        COUNT_IF(CAST(r.review_answer_timestamp AS DATE) >= CAST(o.order_delivered_customer_date AS DATE))                 AS after_n,
+        SUM(IFF(CAST(r.review_answer_timestamp AS DATE) >= CAST(o.order_delivered_customer_date AS DATE), r.review_score, 0)) AS after_score
+    FROM ELIO_OLIST.STAGING.STG_OLIST__ORDERS AS o
+    INNER JOIN latest_review AS r ON r.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+      AND o.order_delivered_customer_date IS NOT NULL
+      AND CAST(o.order_delivered_customer_date AS DATE) > CAST(o.order_estimated_delivery_date AS DATE)
+),
+
+mart AS (
+    SELECT
+        COUNT_IF(CAST(r.review_answer_timestamp AS DATE) <  fo.delivered_date)                     AS before_n,
+        SUM(IFF(CAST(r.review_answer_timestamp AS DATE) <  fo.delivered_date, fo.review_score, 0)) AS before_score,
+        COUNT_IF(CAST(r.review_answer_timestamp AS DATE) >= fo.delivered_date)                     AS after_n,
+        SUM(IFF(CAST(r.review_answer_timestamp AS DATE) >= fo.delivered_date, fo.review_score, 0)) AS after_score
+    FROM ELIO_OLIST.MARTS.FCT_ORDERS AS fo
+    INNER JOIN ELIO_OLIST.INTERMEDIATE.INT_ORDER_REVIEWS AS r ON r.order_id = fo.order_id
+    WHERE fo.is_late AND fo.review_score IS NOT NULL
+)
+
+SELECT 'C9 late reviews answered before arrival' AS check_name, m.before_n AS from_marts, s.before_n AS from_staging, m.before_n = s.before_n AS ok FROM mart AS m CROSS JOIN staged AS s
+UNION ALL
+SELECT 'C9 their score total', m.before_score, s.before_score, m.before_score = s.before_score FROM mart AS m CROSS JOIN staged AS s
+UNION ALL
+SELECT 'C9 late reviews answered after arrival', m.after_n, s.after_n, m.after_n = s.after_n FROM mart AS m CROSS JOIN staged AS s
+UNION ALL
+SELECT 'C9 their score total', m.after_score, s.after_score, m.after_score = s.after_score FROM mart AS m CROSS JOIN staged AS s;

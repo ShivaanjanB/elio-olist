@@ -3,11 +3,26 @@
 Every number below comes from a query in [`sql/insight_queries.sql`](sql/insight_queries.sql) or
 [`sql/analytics_queries.sql`](sql/analytics_queries.sql), and I recomputed each one from the staging views by a different route in
 [`sql/insight_checks.sql`](sql/insight_checks.sql) and [`sql/analytics_checks.sql`](sql/analytics_checks.sql). The query behind
-each figure is named in brackets, like [I1b]. The decisions are in [`docs/decision_log.md`](docs/decision_log.md), D56 to D60.
+each figure is named in brackets, like [I1b]. The decisions are in [`docs/decision_log.md`](docs/decision_log.md), D56 to D60 and D74.
 
 **The short version.** The problem is repeat purchase: 96.9% of people buy once. Late delivery wrecks reviews and goes with a lower
 repeat rate, but the group it hits is small. So I'm recommending a capped, randomised test that shows what a voucher actually does,
 rather than promising a jump in revenue.
+
+## Context: who Olist is
+
+In 2016 to 2018 Olist ran the "Olist Store": one store on Brazil's big marketplaces, selling for thousands of small merchants who
+shipped their own orders. Once the parcel arrived, or the promised date passed, the shopper got a review survey by email
+([dataset description](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)). Two things follow from that:
+
+- **Shoppers belong to the marketplace.** They come back to Mercado Livre or Amazon and pick whichever seller suits them, so a low
+  repeat rate for one store is partly built in.
+- **Reviews and late deliveries are public.** Marketplaces score sellers on late shipments, cancellations and complaints, and a
+  worse score means less visibility ([Mercado Livre's seller reputation](https://developers.mercadolivre.com.br/en_us/sellers-reputation)).
+  So a bad review costs more than one customer.
+
+Olist has since moved into software for small retailers and closed the Olist Store business in 2026
+([Brazil Journal](https://braziljournal.com/a-olist-matou-o-negocio-que-a-fez-unicornio-o-novo-modelo-e-melhor/)).
 
 ## B1. Commercial insights
 
@@ -35,9 +50,20 @@ is below 2. Orders that arrive early, even by more than a week, score about the 
 
 **Is it just geography?** Late rates are highest in far-away states, so customers there might simply rate lower. They don't. In each of the 14 states with at least 100 late reviewed orders, late orders score 1.6 to 2.3 stars lower [I1c]. With the state mix held fixed, the gap is 1.92 stars (4.29 against 2.37) [I1d].
 
+**When was the review written?** The survey goes out when the parcel arrives or the promised date passes, whichever comes first.
+So most late customers were asked before their parcel turned up.
+
+| Arrival | Reviewed orders | Answered before the parcel arrived | Score if answered before | Score if answered after |
+|---|---:|---:|---:|---:|
+| On time or early | 89,443 | 153 (0.2%) | 3.86 | 4.29 |
+| Late | 6,381 | 4,086 (64.0%) | 1.63 | 3.41 |
+
+[I1e] Lateness still costs close to a star once the parcel arrives (3.41 against 4.29). But most of the drop to 2.27 comes from
+people rating a parcel they haven't got yet (D74).
+
 **Why it matters.** A broken delivery promise is the one driver of bad reviews that operations can control, and reviews shape what
 the next buyer sees on the marketplace. It also shows that the promise matters more than the speed: arriving early earns nothing
-extra, and arriving late costs a star even by a day or two.
+extra, and arriving late costs a star even by a day or two. And asking for a review on the promised date makes it worse.
 
 **Why not RFM.** 93,099 of 96,096 people (96.88%) have exactly one order [I3c], so the frequency part of RFM barely varies and the
 model would collapse to recency and spend. The question here is how one experience relates to a second purchase, so I compared
@@ -105,6 +131,11 @@ test won't find it, and the result should be read as "no effect larger than this
 **Decision rule.** Scale the voucher only if the 8-week uplift is real (the interval excludes zero) and the voucher cost per extra
 order is below the margin earned on an order. Finance would supply the margin, because the data doesn't have it.
 
+**A near-free test to run alongside it.** At the promised date, send late customers a short message saying where their order is,
+and send the review survey only once the parcel arrives. It costs almost nothing and goes straight at the 1.63-star reviews written
+before delivery [I1e]. It needs its own random holdout, measured on review score and the 8-week repeat rate, so its effect can be
+told apart from the voucher's (D74).
+
 **Fallback.** If the test shows no effect, the cheaper lever is the delivery promise. A one to three day slip costs a full
 star (Insight 1), and the states with the highest late rates are AL (21.4%), MA (17.4%) and SE (15.2%) [Q4]. Resetting estimated
 delivery dates or seller service levels there needs no voucher. I haven't sized it here, because the data can't say what a
@@ -120,6 +151,8 @@ longer promise does to purchases.
 - **Small effects, small segment.** The 8-week gaps are a quarter to a third of a percentage point, which only large groups can show reliably. That's why the test is sized by the smallest effect it can see.
 - **The "within 180 days" windows exclude recent buyers.** People delivered after 2018-04-20 are left out so everyone had the same time (D53).
 - **Old data, one marketplace.** The orders run from 2016 to 2018 and were sold through Olist, so rates today may differ.
+- **The voucher has to fit marketplace rules.** Marketplaces control how sellers contact and reward buyers, so the offer may need to run through the marketplace's own promotions. That needs checking before the test starts.
+- **Low repeat is partly structural.** On a marketplace, shoppers come back to the marketplace and choose any seller, so 96.9% buying once from one store is less alarming than it looks.
 - **Late is judged against Olist's own promised dates,** which are generous in some states (AM and RO have low late rates despite long deliveries), so late isn't the same as slow.
 - **Reviews are voluntary.** 98,673 of 99,441 orders have one, so selection is small, but angry and delighted customers are more likely to write.
 - **No time zone** in the source timestamps (D09), which can move an order by a day around midnight. Delivery and lateness are measured in whole days, so the effect is small.
@@ -171,6 +204,7 @@ shouldn't be presented as working. I set the other options aside for similar rea
 | Figure | Query | Independent check |
 |---|---|---|
 | Review score by lateness, per state, state-adjusted gap | I1a, I1b, I1c, I1d | C6 |
+| Reviews answered before the parcel arrived | I1e | C9 |
 | Share of people with one order | I3c | Pinned by `marts_golden_numbers` (dbt): 96,096 people, 2,997 with more than one order |
 | Repeat rates at 56, 90 and 180 days, segment sizes | I2 | C7, C5 |
 | Segment per year, base rate, order value, voucher cost | I3, I3b | C8 |

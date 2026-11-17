@@ -123,7 +123,7 @@ staging de-duplicates, D71), and every `ok` in the two cross-check files was `Tr
 | Marts | `MARTS` | Tables | The star schema: `fct_orders`, `fct_order_items`, `dim_customer`, `dim_product`, `dim_seller`, `dim_date`. Tables, because analysts query these and the join cost gets paid once |
 
 Snowflake doesn't enforce keys, so every key has a dbt test, and every mart has an enforced contract (the columns and types are
-declared, and dbt refuses to build if they drift). There are 73 decisions in [`docs/decision_log.md`](docs/decision_log.md), each
+declared, and dbt refuses to build if they drift). There are 74 decisions in [`docs/decision_log.md`](docs/decision_log.md), each
 with what I picked it over and why. The ER diagram, the normalisation reasoning and the
 star schema are in [`docs/data_model.md`](docs/data_model.md).
 

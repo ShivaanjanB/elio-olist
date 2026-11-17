@@ -90,6 +90,25 @@ SELECT
 FROM by_state;
 
 
+-- I1e. When was the review answered? The survey goes out when the parcel arrives or the promised date passes, so late
+--      customers are often asked before their parcel arrives. Expect 4,086 of 6,381 late reviews (64.0%) answered before
+--      delivery at 1.63 stars, against 3.41 for late reviews answered after arrival and 4.29 for on time (D74).
+SELECT
+    IFF(fo.is_late, 'late', 'on time or early')                                                           AS arrival,
+    COUNT(*)                                                                                              AS reviewed_orders,
+    COUNT_IF(CAST(r.review_answer_timestamp AS DATE) < fo.delivered_date)                                 AS answered_before_arrival,
+    ROUND(100 * COUNT_IF(CAST(r.review_answer_timestamp AS DATE) < fo.delivered_date) / COUNT(*), 1)      AS pct_before_arrival,
+    ROUND(AVG(IFF(CAST(r.review_answer_timestamp AS DATE) <  fo.delivered_date, fo.review_score, NULL)), 2) AS score_answered_before,
+    ROUND(AVG(IFF(CAST(r.review_answer_timestamp AS DATE) >= fo.delivered_date, fo.review_score, NULL)), 2) AS score_answered_after
+FROM ELIO_OLIST.MARTS.FCT_ORDERS AS fo
+INNER JOIN ELIO_OLIST.INTERMEDIATE.INT_ORDER_REVIEWS AS r
+    ON r.order_id = fo.order_id
+WHERE fo.is_late IS NOT NULL
+  AND fo.review_score IS NOT NULL
+GROUP BY 1
+ORDER BY 1;
+
+
 -- I2. Insight 2: repeat purchase against first-order experience, at 56, 90 and 180 days.
 WITH params AS (
     SELECT MAX(purchase_date) AS data_end
