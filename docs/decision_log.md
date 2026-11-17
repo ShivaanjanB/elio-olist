@@ -4,7 +4,7 @@ The design decisions, what I picked each one over, and why. The queries behind t
 [`relationship_checks.sql`](relationship_checks.sql) and [`type_and_design_checks.sql`](type_and_design_checks.sql), the model is in
 [`data_model.md`](data_model.md), and the load decisions are in [`../ingest/LOAD_NOTES.md`](../ingest/LOAD_NOTES.md).
 
-Written 2026-11-13 (D01 to D62), 2026-11-14 (D63 to D71) and 2026-11-16 (D72 and D73).
+Written 2026-11-13 (D01 to D62), 2026-11-14 (D63 to D71), 2026-11-16 (D72 and D73) and 2026-11-17 (D74).
 
 | ID | Decision | Instead of | Why |
 |---|---|---|---|
@@ -81,3 +81,4 @@ Written 2026-11-13 (D01 to D62), 2026-11-14 (D63 to D71) and 2026-11-16 (D72 and
 | D71 | Staging keeps one row per key (the newest load wins), and a warning test, `raw_keys_are_unique`, reports any repeat in RAW. Supersedes D33. | No de-duplication | The brief lists de-duplication as a staging job, and the warning test means a double load can't hide. It removes nothing today. |
 | D72 | The README's build command names `raw_keys_are_unique` | Changing the expected result to 175 | No layer selector picks that test up, so the old command gave PASS=175, not 176. |
 | D73 | Revenue, late rate, repeat rate and a few more are defined once as a semantic layer in `_marts__semantic.yml` | Leaving them in the columns only | One name per business word for every tool. It changes no table, and the app doesn't use it yet. |
+| D74 | Insight 1 shows when each review was answered, and a survey-timing test sits next to the voucher | Reporting the 2.27 average alone | The survey goes out on the promised date, so 64% of late reviews came before the parcel did (1.63 stars, against 3.41 after arrival). Moving the survey costs almost nothing. |
