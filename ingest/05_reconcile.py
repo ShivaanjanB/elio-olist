@@ -63,10 +63,11 @@ def main():
             cur.execute(f"SELECT COUNT(*) FROM {STAGE}/{filename}.gz (FILE_FORMAT => '{FILE_FORMAT}')")
             staged = cur.fetchone()[0]
 
+            # COPY_HISTORY keeps 14 days, so look back the full 14 (a shorter window reports "no history" a few days after the load)
             cur.execute(
                 "SELECT row_count, error_count, status "
                 f"FROM TABLE(ELIO_OLIST.INFORMATION_SCHEMA.COPY_HISTORY("
-                f"TABLE_NAME => 'ELIO_OLIST.RAW.{table}', START_TIME => DATEADD(days, -3, CURRENT_TIMESTAMP()))) "
+                f"TABLE_NAME => 'ELIO_OLIST.RAW.{table}', START_TIME => DATEADD(days, -14, CURRENT_TIMESTAMP()))) "
                 "ORDER BY last_load_time DESC LIMIT 1"
             )
             history = cur.fetchone()
